@@ -1,4 +1,6 @@
 # Google JSON Web Token Verify
+[![Build Status](https://travis-ci.org/fuchsnj/google-jwt-verify.svg?branch=master)](https://travis-ci.org/fuchsnj/google-jwt-verify)
+
 This can be used to verify Google JWT tokens. Google's public keys are automatically fetched
 and cached according to the returned Cache-Control headers. Most requests to verify a token
 through this library will not wait for an HTTP request
