@@ -54,6 +54,11 @@ impl Client {
     pub fn builder(client_id: &str) -> ClientBuilder {
         ClientBuilder::new(client_id)
     }
+
+    pub fn new(client_id: &str) -> Client {
+        ClientBuilder::new(client_id).build()
+    }
+
     pub fn verify_token_with_payload<P>(&self, token_string: &str) -> Result<Token<P>, Error>
         where for<'a> P: Deserialize<'a> {
         let mut segments = token_string.split('.');
