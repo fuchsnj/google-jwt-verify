@@ -2,6 +2,12 @@
 name = "google-jwt-verify"
 version = "0.1.0"
 authors = ["Nathan Fox <fuchsnj@gmail.com>"]
+readme = "README.md"
+repository = "https://github.com/fuchsnj/google-jwt-verify"
+license = "MIT/Apache-2.0"
+description = """
+A client to verify Google JSON web tokens
+"""
 
 [dependencies]
 openssl = "0.10.7"
