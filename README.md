@@ -1,5 +1,7 @@
 # Google JSON Web Token Verify
 [![Build Status](https://travis-ci.org/fuchsnj/google-jwt-verify.svg?branch=master)](https://travis-ci.org/fuchsnj/google-jwt-verify)
+[![crates.io](https://img.shields.io/crates/v/google-jwt-verify.svg)](https://crates.io/crates/google-jwt-verify)
+[![documentation](https://docs.rs/google-jwt-verify/badge.svg)](https://docs.rs/google-jwt-verify)
 
 This can be used to verify Google JWT tokens. Google's public keys are automatically fetched
 and cached according to the returned Cache-Control headers. Most requests to verify a token
