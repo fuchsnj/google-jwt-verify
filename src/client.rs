@@ -11,21 +11,30 @@ use token::IdPayload;
 use serde_json;
 use base64_decode;
 
-pub struct ClientBuilder {
+pub struct ClientBuilder<T> {
     client_id: String,
-    key_provider: Arc<Mutex<KeyProvider>>,
+    key_provider: Arc<Mutex<T>>,
     check_expiration: bool,
 }
 
-impl ClientBuilder {
-    pub fn new(client_id: &str) -> ClientBuilder {
+impl<T> ClientBuilder<T> {
+    pub fn new(client_id: &str) -> ClientBuilder<GoogleKeyProvider> {
         ClientBuilder {
             client_id: client_id.to_owned(),
             key_provider: Arc::new(Mutex::new(GoogleKeyProvider::new())),
             check_expiration: true,
         }
     }
-    pub fn custom_key_provider<T: KeyProvider + 'static>(mut self, provider: T) -> Self {
+
+    pub fn with_key_provider(client_id: &str, t: T) -> ClientBuilder<T> where T: KeyProvider {
+        ClientBuilder {
+            client_id: client_id.to_owned(),
+            key_provider: Arc::new(Mutex::new(t)),
+            check_expiration: true,
+        }
+    }
+
+    pub fn custom_key_provider(mut self, provider: T) -> Self where T: KeyProvider + 'static {
         self.key_provider = Arc::new(Mutex::new(provider));
         self
     }
@@ -35,7 +44,7 @@ impl ClientBuilder {
         self
     }
 
-    pub fn build(self) -> Client {
+    pub fn build(self) -> Client<T> {
         Client {
             client_id: self.client_id,
             key_provider: self.key_provider,
@@ -44,19 +53,23 @@ impl ClientBuilder {
     }
 }
 
-pub struct Client {
+pub struct Client<T> {
     client_id: String,
-    key_provider: Arc<Mutex<KeyProvider>>,
+    key_provider: Arc<Mutex<T>>,
     check_expiration: bool,
 }
 
-impl Client {
-    pub fn builder(client_id: &str) -> ClientBuilder {
-        ClientBuilder::new(client_id)
+impl<T> Client<T> where T: KeyProvider {
+    pub fn builder(client_id: &str) -> ClientBuilder<GoogleKeyProvider> {
+        ClientBuilder::<GoogleKeyProvider>::new(client_id)
     }
 
-    pub fn new(client_id: &str) -> Client {
-        ClientBuilder::new(client_id).build()
+    pub fn with_key_provder(client_id: &str, t: T) -> ClientBuilder<T> {
+        ClientBuilder::<T>::with_key_provider(client_id, t)
+    }
+
+    pub fn new(client_id: &str) -> Client<GoogleKeyProvider> {
+        ClientBuilder::<GoogleKeyProvider>::new(client_id).build()
     }
 
     pub fn verify_token_with_payload<P>(&self, token_string: &str) -> Result<Token<P>, Error>

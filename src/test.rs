@@ -44,16 +44,14 @@ pub fn decode_keys() {
 
 #[test]
 pub fn test_client() {
-    let client = Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
-        .custom_key_provider(TestKeyProvider)
+    let client = Client::with_key_provder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com", TestKeyProvider)
         .build();
     assert_eq!(client.verify_token(TOKEN).map(|_| ()), Err(Error::Expired));
 }
 
 #[test]
 pub fn test_client_invalid_client_id() {
-    let client = Client::builder("invalid client id")
-        .custom_key_provider(TestKeyProvider)
+    let client = Client::with_key_provder("invalid client id", TestKeyProvider)
         .build();
     let result = client.verify_token(TOKEN).map(|_| ());
     assert_eq!(result, Err(Error::InvalidToken))
@@ -61,8 +59,7 @@ pub fn test_client_invalid_client_id() {
 
 #[test]
 pub fn test_id_token() {
-    let client = Client::builder(AUDIENCE)
-        .custom_key_provider(TestKeyProvider)
+    let client = Client::with_key_provder(AUDIENCE, TestKeyProvider)
         .unsafe_ignore_expiration()
         .build();
     let id_token = client.verify_id_token(TOKEN).expect("id token should be valid");
