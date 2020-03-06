@@ -1,6 +1,6 @@
 use serde_json;
 use base64::DecodeError;
-use algorithm::Algorithm;
+use crate::algorithm::Algorithm;
 use openssl;
 
 #[derive(Debug, PartialEq)]

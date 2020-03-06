@@ -8,6 +8,7 @@ license = "MIT/Apache-2.0"
 description = """
 A client to verify Google JSON web tokens
 """
+edition = "2018"
 
 [dependencies]
 openssl = "0.10.28"

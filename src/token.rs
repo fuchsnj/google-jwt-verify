@@ -1,3 +1,5 @@
+use serde_derive::Deserialize;
+
 pub struct Token<P> {
     required_claims: RequiredClaims,
     payload: P,

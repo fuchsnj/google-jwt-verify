@@ -1,3 +1,5 @@
+use serde_derive::{Serialize, Deserialize};
+
 #[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Algorithm {
     RS256,

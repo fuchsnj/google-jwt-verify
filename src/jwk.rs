@@ -1,11 +1,12 @@
-use algorithm::Algorithm;
-use error::Error;
+use serde_derive::Deserialize;
+use crate::algorithm::Algorithm;
+use crate::error::Error;
 use openssl::sign::Verifier;
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
 use openssl::rsa::Rsa;
 use openssl::bn::BigNum;
-use base64_decode;
+use crate::base64_decode;
 
 #[derive(Deserialize, Clone)]
 pub struct JsonWebKeySet {

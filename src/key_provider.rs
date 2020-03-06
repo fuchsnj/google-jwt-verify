@@ -1,8 +1,8 @@
-use jwk::JsonWebKeySet;
+use crate::jwk::JsonWebKeySet;
 use reqwest;
 use serde_json;
 use std::time::Instant;
-use jwk::JsonWebKey;
+use crate::jwk::JsonWebKey;
 use reqwest::header::CACHE_CONTROL;
 use headers::Header;
 

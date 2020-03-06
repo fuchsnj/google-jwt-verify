@@ -1,15 +1,16 @@
+use serde_derive::{Serialize, Deserialize};
 use std::sync::{Arc, Mutex};
-use key_provider::KeyProvider;
-use key_provider::GoogleKeyProvider;
-use token::Token;
-use error::Error;
+use crate::key_provider::KeyProvider;
+use crate::key_provider::GoogleKeyProvider;
+use crate::token::Token;
+use crate::error::Error;
 use serde::Deserialize;
-use token::RequiredClaims;
+use crate::token::RequiredClaims;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use token::IdPayload;
+use crate::token::IdPayload;
 use serde_json;
-use base64_decode;
+use crate::base64_decode;
 
 pub struct ClientBuilder {
     client_id: String,
