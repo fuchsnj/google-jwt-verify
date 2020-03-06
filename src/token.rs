@@ -1,3 +1,5 @@
+use serde_derive::Deserialize;
+
 pub struct Token<P> {
     required_claims: RequiredClaims,
     payload: P,
@@ -5,7 +7,10 @@ pub struct Token<P> {
 
 impl<P> Token<P> {
     pub fn new(required_claims: RequiredClaims, payload: P) -> Token<P> {
-        Token { required_claims, payload }
+        Token {
+            required_claims,
+            payload,
+        }
     }
     pub fn get_claims(&self) -> RequiredClaims {
         self.required_claims.clone()
