@@ -13,7 +13,7 @@ use base64_decode;
 
 pub struct ClientBuilder {
     client_id: String,
-    key_provider: Arc<Mutex<KeyProvider>>,
+    key_provider: Arc<Mutex<dyn KeyProvider + Send>>,
     check_expiration: bool,
 }
 
@@ -25,7 +25,7 @@ impl ClientBuilder {
             check_expiration: true,
         }
     }
-    pub fn custom_key_provider<T: KeyProvider + 'static>(mut self, provider: T) -> Self {
+    pub fn custom_key_provider<T: KeyProvider + Send + 'static>(mut self, provider: T) -> Self {
         self.key_provider = Arc::new(Mutex::new(provider));
         self
     }
@@ -46,7 +46,7 @@ impl ClientBuilder {
 
 pub struct Client {
     client_id: String,
-    key_provider: Arc<Mutex<KeyProvider>>,
+    key_provider: Arc<Mutex<dyn KeyProvider + Send>>,
     check_expiration: bool,
 }
 

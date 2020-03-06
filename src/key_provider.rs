@@ -1,9 +1,10 @@
 use jwk::JsonWebKeySet;
 use reqwest;
 use serde_json;
-use reqwest::header::{CacheControl, CacheDirective};
-use std::time::{Instant, Duration};
+use std::time::Instant;
 use jwk::JsonWebKey;
+use reqwest::header::CACHE_CONTROL;
+use headers::Header;
 
 const GOOGLE_CERT_URL: &'static str = "https://www.googleapis.com/oauth2/v3/certs";
 
@@ -24,16 +25,15 @@ impl GoogleKeyProvider {
         }
     }
     pub fn download_keys(&mut self) -> Result<&JsonWebKeySet, ()> {
-        let mut result = reqwest::get(GOOGLE_CERT_URL).map_err(|_| ())?;
-        let text = result.text().map_err(|_| ())?;
+        let result = reqwest::blocking::get(GOOGLE_CERT_URL).map_err(|_| ())?;
         let mut expiration_time = None;
-        if let Some(cache_header) = result.headers().get::<CacheControl>() {
-            cache_header.iter().for_each(|directive| {
-                if let CacheDirective::MaxAge(age_seconds) = directive {
-                    expiration_time = Some(Instant::now() + Duration::from_secs(*age_seconds as u64))
-                }
-            });
+        let x = result.headers().get_all(CACHE_CONTROL);
+        if let Ok(cache_header) = headers::CacheControl::decode(&mut x.iter()) {
+            if let Some(max_age) = cache_header.max_age() {
+                expiration_time = Some(Instant::now() + max_age);
+            }
         }
+        let text = result.text().map_err(|_| ())?;
         let key_set = serde_json::from_str(&text).map_err(|_| ())?;
         if let Some(expiration_time) = expiration_time {
             self.cached = Some(key_set);

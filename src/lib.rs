@@ -5,6 +5,7 @@ extern crate serde_json;
 extern crate openssl;
 extern crate base64;
 extern crate reqwest;
+extern crate headers;
 
 #[cfg(test)]
 mod test;
