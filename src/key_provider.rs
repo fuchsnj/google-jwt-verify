@@ -1,10 +1,10 @@
+use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
+use headers::Header;
 use reqwest;
+use reqwest::header::CACHE_CONTROL;
 use serde_json;
 use std::time::Instant;
-use crate::jwk::JsonWebKey;
-use reqwest::header::CACHE_CONTROL;
-use headers::Header;
 
 const GOOGLE_CERT_URL: &'static str = "https://www.googleapis.com/oauth2/v3/certs";
 

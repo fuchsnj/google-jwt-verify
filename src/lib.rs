@@ -1,15 +1,15 @@
 #[cfg(test)]
 mod test;
 
-mod key_provider;
 mod algorithm;
+mod client;
 mod error;
 mod jwk;
-mod client;
+mod key_provider;
 mod token;
 
 pub use crate::client::Client;
-pub use crate::token::{Token, IdPayload, RequiredClaims};
+pub use crate::token::{IdPayload, RequiredClaims, Token};
 pub use error::Error;
 
 fn base64_decode(input: &str) -> Result<Vec<u8>, base64::DecodeError> {

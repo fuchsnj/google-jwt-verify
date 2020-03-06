@@ -1,8 +1,8 @@
 use super::*;
-use crate::jwk::JsonWebKeySet;
 use crate::error::Error;
-use crate::key_provider::KeyProvider;
 use crate::jwk::JsonWebKey;
+use crate::jwk::JsonWebKeySet;
+use crate::key_provider::KeyProvider;
 
 const TOKEN: &'static str = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImE3NDhlOWY3NjcxNTlmNjY3YTAyMjMzMThkZTBiMjMyOWU1NDQzNjIifQ.eyJhenAiOiIzNzc3MjExNzQwOC1xanFvOWhjYTUxM3BkY3VudW10N2drMDhpaTZ0ZThpcy5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsImF1ZCI6IjM3NzcyMTE3NDA4LXFqcW85aGNhNTEzcGRjdW51bXQ3Z2swOGlpNnRlOGlzLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwic3ViIjoiMTA3MDY3MzYxNTAzOTU0NDc0NDg4IiwiZW1haWwiOiJmdWNoc25qQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhdF9oYXNoIjoiaTBOWk5kYWp3UklJbDJvUk9zUUptUSIsImV4cCI6MTUyNjQ5MjUzMywiaXNzIjoiYWNjb3VudHMuZ29vZ2xlLmNvbSIsImp0aSI6IjNmMjc1YjRiY2JmZDU0Y2IxNjZmMzcxNWQ1NTBkMWNmMmUxYThiZGEiLCJpYXQiOjE1MjY0ODg5MzMsIm5hbWUiOiJOYXRoYW4gRm94IiwicGljdHVyZSI6Imh0dHBzOi8vbGg1Lmdvb2dsZXVzZXJjb250ZW50LmNvbS8tbEJSLWE3Z2gwdFkvQUFBQUFBQUFBQUkvQUFBQUFBQUFFUk0vNDFHUk43cDNNVzQvczk2LWMvcGhvdG8uanBnIiwiZ2l2ZW5fbmFtZSI6Ik5hdGhhbiIsImZhbWlseV9uYW1lIjoiRm94IiwibG9jYWxlIjoiZW4ifQ.pOoIMLZgZIFP-fgQirCRRK31ap_CO7WZDeHge-U5GoAvF0VdkoSDSL-1-8d93qKb8IWzi2iS2MgaLekcX8eELM5x39Th1sBwjQGjYr5AXmqE53WDQiqvKzrz-BZ3ay0uSAMllxWfFi62BkSP3m1HJNWyUWrUf6GyI-Vy024dtrX9Qq_BOznJWbQVhHf5aA7x5AAoLHZ_PmzxbUlDQ7Go6FD7sgkoksZI4Cp77HZJMXXGVOrvvXJkpctTcuBZ2P-2filLmb29JIm0e4McOjeHQTV7XNGdzTZoyeSZcU5xTVFQK89e-SIPHKyaL7TAr_faBbTGzVryYfa2VFyKi7Z9gA";
 const JWKS: &'static str = r#"{
@@ -25,7 +25,8 @@ const JWKS: &'static str = r#"{
   }
  ]
 }"#;
-const AUDIENCE: &'static str = "37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com";
+const AUDIENCE: &'static str =
+    "37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com";
 
 struct TestKeyProvider;
 
@@ -38,15 +39,20 @@ impl KeyProvider for TestKeyProvider {
 
 #[test]
 pub fn decode_keys() {
-    TestKeyProvider.get_key("3f3ef9c7803cd0b8d75247ee0d31fdd5c2cf3812").unwrap();
-    TestKeyProvider.get_key("a748e9f767159f667a0223318de0b2329e544362").unwrap();
+    TestKeyProvider
+        .get_key("3f3ef9c7803cd0b8d75247ee0d31fdd5c2cf3812")
+        .unwrap();
+    TestKeyProvider
+        .get_key("a748e9f767159f667a0223318de0b2329e544362")
+        .unwrap();
 }
 
 #[test]
 pub fn test_client() {
-    let client = Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
-        .custom_key_provider(TestKeyProvider)
-        .build();
+    let client =
+        Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
+            .custom_key_provider(TestKeyProvider)
+            .build();
     assert_eq!(client.verify_token(TOKEN).map(|_| ()), Err(Error::Expired));
 }
 
@@ -65,7 +71,9 @@ pub fn test_id_token() {
         .custom_key_provider(TestKeyProvider)
         .unsafe_ignore_expiration()
         .build();
-    let id_token = client.verify_id_token(TOKEN).expect("id token should be valid");
+    let id_token = client
+        .verify_id_token(TOKEN)
+        .expect("id token should be valid");
     assert_eq!(id_token.get_claims().get_audience(), AUDIENCE);
     assert_eq!(id_token.get_payload().get_domain(), None);
     assert_eq!(id_token.get_payload().get_email(), "fuchsnj@gmail.com");

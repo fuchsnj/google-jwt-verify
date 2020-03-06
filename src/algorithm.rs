@@ -1,4 +1,4 @@
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Algorithm {

@@ -1,16 +1,16 @@
-use serde_derive::{Serialize, Deserialize};
-use std::sync::{Arc, Mutex};
-use crate::key_provider::KeyProvider;
-use crate::key_provider::GoogleKeyProvider;
-use crate::token::Token;
+use crate::base64_decode;
 use crate::error::Error;
-use serde::Deserialize;
+use crate::key_provider::GoogleKeyProvider;
+use crate::key_provider::KeyProvider;
+use crate::token::IdPayload;
 use crate::token::RequiredClaims;
+use crate::token::Token;
+use serde::Deserialize;
+use serde_derive::{Deserialize, Serialize};
+use serde_json;
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use crate::token::IdPayload;
-use serde_json;
-use crate::base64_decode;
 
 pub struct ClientBuilder {
     client_id: String,
@@ -61,7 +61,9 @@ impl Client {
     }
 
     pub fn verify_token_with_payload<P>(&self, token_string: &str) -> Result<Token<P>, Error>
-        where for<'a> P: Deserialize<'a> {
+    where
+        for<'a> P: Deserialize<'a>,
+    {
         let mut segments = token_string.split('.');
         let encoded_header = segments.next().ok_or(Error::InvalidToken)?;
         let encoded_payload = segments.next().ok_or(Error::InvalidToken)?;
@@ -72,7 +74,7 @@ impl Client {
         let key = match self.key_provider.lock().unwrap().get_key(&header.key_id) {
             Ok(Some(key)) => key,
             Ok(None) => return Err(Error::InvalidToken),
-            Err(_) => return Err(Error::RetrieveKeyFailure)
+            Err(_) => return Err(Error::RetrieveKeyFailure),
         };
         let signed_body = format!("{}.{}", encoded_header, encoded_payload);
         let signature = base64_decode(&encoded_signature)?;
@@ -87,7 +89,10 @@ impl Client {
         if issuer != "https://accounts.google.com" && issuer != "accounts.google.com" {
             return Err(Error::InvalidToken);
         }
-        let current_timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let current_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         if self.check_expiration {
             if claims.get_expires_at() < current_timestamp {
                 return Err(Error::Expired);

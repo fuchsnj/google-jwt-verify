@@ -1,21 +1,22 @@
-use serde_derive::Deserialize;
 use crate::algorithm::Algorithm;
+use crate::base64_decode;
 use crate::error::Error;
-use openssl::sign::Verifier;
+use openssl::bn::BigNum;
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
 use openssl::rsa::Rsa;
-use openssl::bn::BigNum;
-use crate::base64_decode;
+use openssl::sign::Verifier;
+use serde_derive::Deserialize;
 
 #[derive(Deserialize, Clone)]
 pub struct JsonWebKeySet {
-    keys: Vec<JsonWebKey>
+    keys: Vec<JsonWebKey>,
 }
 
 impl JsonWebKeySet {
     pub fn get_key(&self, id: &str) -> Option<JsonWebKey> {
-        self.keys.iter()
+        self.keys
+            .iter()
             .find(|key| key.id == id)
             .map(|key| key.clone())
     }
@@ -47,9 +48,7 @@ impl JsonWebKey {
                 verifier.verify(signature)?;
                 Ok(())
             }
-            _ => {
-                Err(Error::UnsupportedAlgorithm(self.algorithm))
-            }
+            _ => Err(Error::UnsupportedAlgorithm(self.algorithm)),
         }
     }
 }

@@ -1,14 +1,14 @@
-use serde_json;
-use base64::DecodeError;
 use crate::algorithm::Algorithm;
+use base64::DecodeError;
 use openssl;
+use serde_json;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
     InvalidToken,
     RetrieveKeyFailure,
     UnsupportedAlgorithm(Algorithm),
-    Expired
+    Expired,
 }
 
 impl From<DecodeError> for Error {
