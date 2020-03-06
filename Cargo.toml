@@ -1,6 +1,6 @@
 [package]
 name = "google-jwt-verify"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Nathan Fox <fuchsnj@gmail.com>"]
 readme = "README.md"
 repository = "https://github.com/fuchsnj/google-jwt-verify"
