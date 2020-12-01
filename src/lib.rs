@@ -8,7 +8,7 @@ mod jwk;
 mod key_provider;
 mod token;
 
-pub use crate::client::Client;
+pub use crate::client::{AsyncClient, Client};
 pub use crate::token::{IdPayload, RequiredClaims, Token};
 pub use error::Error;
 
