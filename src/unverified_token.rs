@@ -1,22 +1,34 @@
-use std::{sync::{Arc, Mutex}, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use serde::Deserialize;
 
-use crate::{Error, jwk::JsonWebKey, RequiredClaims, Token, base64_decode, header::Header, key_provider::AsyncKeyProvider, key_provider::KeyProvider};
+#[cfg(feature = "async")]
+use crate::key_provider::AsyncKeyProvider;
+use crate::{
+    base64_decode, header::Header, jwk::JsonWebKey, key_provider::KeyProvider, Error,
+    RequiredClaims, Token,
+};
 
 pub struct UnverifiedToken<P> {
     header: Header,
     signed_body: String,
     signature: Vec<u8>,
     claims: RequiredClaims,
-    json_payload: P
+    json_payload: P,
 }
 
 impl<P> UnverifiedToken<P>
 where
-    for<'a> P: Deserialize<'a>
+    for<'a> P: Deserialize<'a>,
 {
-    pub fn validate(token_string: &str, check_expiration: bool, client_id: &str) -> Result<Self, Error> {
+    pub fn validate(
+        token_string: &str,
+        check_expiration: bool,
+        client_id: &str,
+    ) -> Result<Self, Error> {
         let mut segments = token_string.split('.');
         let encoded_header = segments.next().ok_or(Error::InvalidToken)?;
         let encoded_payload = segments.next().ok_or(Error::InvalidToken)?;
@@ -50,7 +62,7 @@ where
             signature,
             signed_body,
             json_payload,
-            header
+            header,
         })
     }
 }
@@ -60,7 +72,11 @@ impl<P> UnverifiedToken<P> {
         let key_id = self.header.key_id.clone();
         self.verify_with_key(key_provider.lock().unwrap().get_key(&key_id))
     }
-    pub async fn verify_async<KP: AsyncKeyProvider>(self, key_provider: &Arc<Mutex<KP>>) ->  Result<Token<P>, Error> {
+    #[cfg(feature = "async")]
+    pub async fn verify_async<KP: AsyncKeyProvider>(
+        self,
+        key_provider: &Arc<Mutex<KP>>,
+    ) -> Result<Token<P>, Error> {
         let key_id = self.header.key_id.clone();
         self.verify_with_key(key_provider.lock().unwrap().get_key_async(&key_id).await)
     }

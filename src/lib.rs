@@ -3,8 +3,8 @@ mod test;
 
 mod algorithm;
 mod client;
-mod header;
 mod error;
+mod header;
 mod jwk;
 mod key_provider;
 mod token;

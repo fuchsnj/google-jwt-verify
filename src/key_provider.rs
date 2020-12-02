@@ -1,5 +1,6 @@
 use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
+#[cfg(feature = "async")]
 use async_trait::async_trait;
 use headers::{Header, HeaderMap};
 use reqwest::header::CACHE_CONTROL;
@@ -11,6 +12,7 @@ pub trait KeyProvider {
     fn get_key(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()>;
 }
 
+#[cfg(feature = "async")]
 #[async_trait]
 pub trait AsyncKeyProvider {
     async fn get_key_async(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()>;
@@ -50,6 +52,7 @@ impl GoogleKeyProvider {
         let result = reqwest::blocking::get(GOOGLE_CERT_URL).map_err(|_| ())?;
         self.process_response(&result.headers().clone(), &result.text().map_err(|_| ())?)
     }
+    #[cfg(feature = "async")]
     async fn download_keys_async(&mut self) -> Result<&JsonWebKeySet, ()> {
         let result = reqwest::get(GOOGLE_CERT_URL).await.map_err(|_| ())?;
         self.process_response(
@@ -70,6 +73,7 @@ impl KeyProvider for GoogleKeyProvider {
     }
 }
 
+#[cfg(feature = "async")]
 #[async_trait]
 impl AsyncKeyProvider for GoogleKeyProvider {
     async fn get_key_async(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()> {
@@ -89,10 +93,14 @@ pub fn test_google_provider() {
     assert!(provider.get_key("test").is_ok());
 }
 
-#[cfg(test)]
-#[tokio::test]
-async fn test_google_provider_async() {
-    let mut provider = GoogleKeyProvider::default();
-    assert!(provider.get_key_async("test").await.is_ok());
-    assert!(provider.get_key_async("test").await.is_ok());
+#[cfg(all(test, feature = "async"))]
+mod async_test {
+    use super::{AsyncKeyProvider, GoogleKeyProvider};
+    use tokio;
+    #[tokio::test]
+    async fn test_google_provider_async() {
+        let mut provider = GoogleKeyProvider::default();
+        assert!(provider.get_key_async("test").await.is_ok());
+        assert!(provider.get_key_async("test").await.is_ok());
+    }
 }

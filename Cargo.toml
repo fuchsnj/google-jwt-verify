@@ -10,8 +10,11 @@ A client to verify Google JSON web tokens
 """
 edition = "2018"
 
+[features]
+async = ["async-trait"]
+
 [dependencies]
-async-trait = "0.1.42"
+async-trait = {version = "0.1.42", optional = true}
 openssl = "0.10.28"
 base64 = "0.11.0"
 serde = "1.0.104"

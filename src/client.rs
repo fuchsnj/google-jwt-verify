@@ -1,8 +1,10 @@
-use crate::unverified_token::UnverifiedToken;
 use crate::error::Error;
-use crate::key_provider::{AsyncKeyProvider, GoogleKeyProvider, KeyProvider};
+#[cfg(feature = "async")]
+use crate::key_provider::AsyncKeyProvider;
+use crate::key_provider::{GoogleKeyProvider, KeyProvider};
 use crate::token::IdPayload;
 use crate::token::Token;
+use crate::unverified_token::UnverifiedToken;
 use serde::Deserialize;
 use std::sync::{Arc, Mutex};
 
@@ -29,7 +31,7 @@ impl<KP> GenericClientBuilder<KP> {
         GenericClientBuilder {
             client_id: self.client_id,
             key_provider: Arc::new(Mutex::new(provider)),
-            check_expiration: self.check_expiration
+            check_expiration: self.check_expiration,
         }
     }
     pub fn unsafe_ignore_expiration(mut self) -> Self {
@@ -65,7 +67,8 @@ impl<KP: KeyProvider> GenericClient<KP> {
     where
         for<'a> P: Deserialize<'a>,
     {
-        let unverified_token = UnverifiedToken::<P>::validate(token_string, self.check_expiration, &self.client_id)?;
+        let unverified_token =
+            UnverifiedToken::<P>::validate(token_string, self.check_expiration, &self.client_id)?;
         unverified_token.verify(&self.key_provider)
     }
 
@@ -78,20 +81,29 @@ impl<KP: KeyProvider> GenericClient<KP> {
     }
 }
 
+#[cfg(feature = "async")]
 impl<KP: AsyncKeyProvider> GenericClient<KP> {
-    pub async fn verify_token_with_payload_async<P>(&self, token_string: &str) -> Result<Token<P>, Error>
+    pub async fn verify_token_with_payload_async<P>(
+        &self,
+        token_string: &str,
+    ) -> Result<Token<P>, Error>
     where
         for<'a> P: Deserialize<'a>,
     {
-        let unverified_token = UnverifiedToken::<P>::validate(token_string, self.check_expiration, &self.client_id)?;
+        let unverified_token =
+            UnverifiedToken::<P>::validate(token_string, self.check_expiration, &self.client_id)?;
         unverified_token.verify_async(&self.key_provider).await
     }
 
     pub async fn verify_token_async(&self, token_string: &str) -> Result<Token<()>, Error> {
-        self.verify_token_with_payload_async::<()>(token_string).await
+        self.verify_token_with_payload_async::<()>(token_string)
+            .await
     }
 
-    pub async fn verify_id_token_async(&self, token_string: &str) -> Result<Token<IdPayload>, Error> {
+    pub async fn verify_id_token_async(
+        &self,
+        token_string: &str,
+    ) -> Result<Token<IdPayload>, Error> {
         self.verify_token_with_payload_async(token_string).await
     }
 }
