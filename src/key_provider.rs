@@ -21,13 +21,16 @@ pub struct GoogleKeyProvider {
     expiration_time: Instant,
 }
 
-impl GoogleKeyProvider {
-    pub fn new() -> GoogleKeyProvider {
-        GoogleKeyProvider {
+impl Default for GoogleKeyProvider {
+    fn default() -> Self {
+        Self {
             cached: None,
             expiration_time: Instant::now(),
         }
     }
+}
+
+impl GoogleKeyProvider {
     fn process_response(&mut self, headers: &HeaderMap, text: &str) -> Result<&JsonWebKeySet, ()> {
         let mut expiration_time = None;
         let x = headers.get_all(CACHE_CONTROL);
@@ -81,7 +84,7 @@ impl AsyncKeyProvider for GoogleKeyProvider {
 
 #[test]
 pub fn test_google_provider() {
-    let mut provider = GoogleKeyProvider::new();
+    let mut provider = GoogleKeyProvider::default();
     assert!(provider.get_key("test").is_ok());
     assert!(provider.get_key("test").is_ok());
 }
@@ -89,7 +92,7 @@ pub fn test_google_provider() {
 #[cfg(test)]
 #[tokio::test]
 async fn test_google_provider_async() {
-    let mut provider = GoogleKeyProvider::new();
+    let mut provider = GoogleKeyProvider::default();
     assert!(provider.get_key_async("test").await.is_ok());
     assert!(provider.get_key_async("test").await.is_ok());
 }

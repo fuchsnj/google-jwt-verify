@@ -2,7 +2,7 @@ use super::*;
 use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
 use crate::key_provider::KeyProvider;
-use crate::{client::AsyncClient, error::Error, key_provider::AsyncKeyProvider};
+use crate::{error::Error, key_provider::AsyncKeyProvider};
 
 use async_trait::async_trait;
 
@@ -103,34 +103,34 @@ async fn decode_keys_async() {
 
 #[tokio::test]
 async fn test_client_async() {
-    let client = AsyncClient::builder(
+    let client = Client::builder(
         "37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com",
     )
     .custom_key_provider(TestKeyProvider)
     .build();
     assert_eq!(
-        client.verify_token(TOKEN).await.map(|_| ()),
+        client.verify_token_async(TOKEN).await.map(|_| ()),
         Err(Error::Expired)
     );
 }
 
 #[tokio::test]
 async fn test_client_invalid_client_id_async() {
-    let client = AsyncClient::builder("invalid client id")
+    let client = Client::builder("invalid client id")
         .custom_key_provider(TestKeyProvider)
         .build();
-    let result = client.verify_token(TOKEN).await.map(|_| ());
+    let result = client.verify_token_async(TOKEN).await.map(|_| ());
     assert_eq!(result, Err(Error::InvalidToken))
 }
 
 #[tokio::test]
 async fn test_id_token_async() {
-    let client = AsyncClient::builder(AUDIENCE)
+    let client = Client::builder(AUDIENCE)
         .custom_key_provider(TestKeyProvider)
         .unsafe_ignore_expiration()
         .build();
     let id_token = client
-        .verify_id_token(TOKEN)
+        .verify_id_token_async(TOKEN)
         .await
         .expect("id token should be valid");
     assert_eq!(id_token.get_claims().get_audience(), AUDIENCE);
