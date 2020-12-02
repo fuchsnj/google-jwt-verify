@@ -3,10 +3,12 @@ mod test;
 
 mod algorithm;
 mod client;
+mod header;
 mod error;
 mod jwk;
 mod key_provider;
 mod token;
+mod unverified_token;
 
 pub use crate::client::Client;
 pub use crate::token::{IdPayload, RequiredClaims, Token};
