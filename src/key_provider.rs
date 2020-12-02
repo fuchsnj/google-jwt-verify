@@ -2,12 +2,10 @@ use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
 use async_trait::async_trait;
 use headers::Header;
-use reqwest;
 use reqwest::header::CACHE_CONTROL;
-use serde_json;
 use std::time::Instant;
 
-const GOOGLE_CERT_URL: &'static str = "https://www.googleapis.com/oauth2/v3/certs";
+const GOOGLE_CERT_URL: &str = "https://www.googleapis.com/oauth2/v3/certs";
 
 pub trait KeyProvider {
     fn get_key(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()>;

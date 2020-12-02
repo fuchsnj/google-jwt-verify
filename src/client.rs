@@ -6,7 +6,6 @@ use crate::token::RequiredClaims;
 use crate::token::Token;
 use serde::Deserialize;
 use serde_derive::{Deserialize, Serialize};
-use serde_json;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -203,10 +202,8 @@ impl Client {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        if self.check_expiration {
-            if claims.get_expires_at() < current_timestamp {
-                return Err(Error::Expired);
-            }
+        if self.check_expiration && claims.get_expires_at() < current_timestamp {
+            return Err(Error::Expired);
         }
         if claims.get_issued_at() > claims.get_expires_at() {
             return Err(Error::InvalidToken);

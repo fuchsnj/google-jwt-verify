@@ -15,10 +15,7 @@ pub struct JsonWebKeySet {
 
 impl JsonWebKeySet {
     pub fn get_key(&self, id: &str) -> Option<JsonWebKey> {
-        self.keys
-            .iter()
-            .find(|key| key.id == id)
-            .map(|key| key.clone())
+        self.keys.iter().find(|key| key.id == id).cloned()
     }
 }
 
