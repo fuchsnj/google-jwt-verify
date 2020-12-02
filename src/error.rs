@@ -1,7 +1,5 @@
 use crate::algorithm::Algorithm;
 use base64::DecodeError;
-use openssl;
-use serde_json;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
