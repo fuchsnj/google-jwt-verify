@@ -1,7 +1,7 @@
 use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
 use async_trait::async_trait;
-use headers::Header;
+use headers::{Header, HeaderMap};
 use reqwest::header::CACHE_CONTROL;
 use std::time::Instant;
 
@@ -28,16 +28,14 @@ impl GoogleKeyProvider {
             expiration_time: Instant::now(),
         }
     }
-    pub fn download_keys(&mut self) -> Result<&JsonWebKeySet, ()> {
-        let result = reqwest::blocking::get(GOOGLE_CERT_URL).map_err(|_| ())?;
+    fn process_response(&mut self, headers: &HeaderMap, text: &str) -> Result<&JsonWebKeySet, ()> {
         let mut expiration_time = None;
-        let x = result.headers().get_all(CACHE_CONTROL);
+        let x = headers.get_all(CACHE_CONTROL);
         if let Ok(cache_header) = headers::CacheControl::decode(&mut x.iter()) {
             if let Some(max_age) = cache_header.max_age() {
                 expiration_time = Some(Instant::now() + max_age);
             }
         }
-        let text = result.text().map_err(|_| ())?;
         let key_set = serde_json::from_str(&text).map_err(|_| ())?;
         if let Some(expiration_time) = expiration_time {
             self.cached = Some(key_set);
@@ -45,21 +43,16 @@ impl GoogleKeyProvider {
         }
         Ok(self.cached.as_ref().unwrap())
     }
-    async fn download_keys_async(&mut self) -> Result<&JsonWebKeySet, reqwest::Error> {
-        let result = reqwest::get(GOOGLE_CERT_URL).await?;
-        let mut expiration_time = None;
-        let x = result.headers().get_all(CACHE_CONTROL);
-        if let Ok(cache_header) = headers::CacheControl::decode(&mut x.iter()) {
-            if let Some(max_age) = cache_header.max_age() {
-                expiration_time = Some(Instant::now() + max_age);
-            }
-        }
-        let key_set = serde_json::from_str(&result.text().await?).unwrap();
-        if let Some(expiration_time) = expiration_time {
-            self.cached = Some(key_set);
-            self.expiration_time = expiration_time;
-        }
-        Ok(self.cached.as_ref().unwrap())
+    pub fn download_keys(&mut self) -> Result<&JsonWebKeySet, ()> {
+        let result = reqwest::blocking::get(GOOGLE_CERT_URL).map_err(|_| ())?;
+        self.process_response(&result.headers().clone(), &result.text().map_err(|_| ())?)
+    }
+    async fn download_keys_async(&mut self) -> Result<&JsonWebKeySet, ()> {
+        let result = reqwest::get(GOOGLE_CERT_URL).await.map_err(|_| ())?;
+        self.process_response(
+            &result.headers().clone(),
+            &result.text().await.map_err(|_| ())?,
+        )
     }
 }
 
@@ -82,11 +75,7 @@ impl AsyncKeyProvider for GoogleKeyProvider {
                 return Ok(cached_keys.get_key(key_id));
             }
         }
-        Ok(self
-            .download_keys_async()
-            .await
-            .map_err(|_| ())?
-            .get_key(key_id))
+        Ok(self.download_keys_async().await?.get_key(key_id))
     }
 }
 
