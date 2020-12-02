@@ -96,7 +96,7 @@ impl AsyncClient {
 
     pub async fn verify_token_with_payload<P>(&self, token_string: &str) -> Result<Token<P>, Error>
     where
-        for<'a> P: Deserialize<'a>,
+        for<'a> P: DeserializeTrait<'a>,
     {
         let mut segments = token_string.split('.');
         let encoded_header = segments.next().ok_or(Error::InvalidToken)?;
@@ -133,10 +133,8 @@ impl AsyncClient {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        if self.check_expiration {
-            if claims.get_expires_at() < current_timestamp {
-                return Err(Error::Expired);
-            }
+        if self.check_expiration && claims.get_expires_at() < current_timestamp {
+            return Err(Error::Expired);
         }
         if claims.get_issued_at() > claims.get_expires_at() {
             return Err(Error::InvalidToken);
