@@ -4,6 +4,7 @@ use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
 #[cfg(feature = "async")]
 use crate::key_provider::AsyncKeyProvider;
+#[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
 
 #[cfg(feature = "async")]
@@ -35,6 +36,7 @@ const AUDIENCE: &'static str =
 
 struct TestKeyProvider;
 
+#[cfg(feature = "blocking")]
 impl KeyProvider for TestKeyProvider {
     fn get_key(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()> {
         let set: JsonWebKeySet = serde_json::from_str(JWKS).unwrap();
@@ -51,6 +53,7 @@ impl AsyncKeyProvider for TestKeyProvider {
     }
 }
 
+#[cfg(feature = "blocking")]
 #[test]
 pub fn decode_keys() {
     TestKeyProvider
@@ -61,6 +64,7 @@ pub fn decode_keys() {
         .unwrap();
 }
 
+#[cfg(feature = "blocking")]
 #[test]
 pub fn test_client() {
     let client =
@@ -70,6 +74,7 @@ pub fn test_client() {
     assert_eq!(client.verify_token(TOKEN).map(|_| ()), Err(Error::Expired));
 }
 
+#[cfg(feature = "blocking")]
 #[test]
 pub fn test_client_invalid_client_id() {
     let client = Client::builder("invalid client id")
@@ -79,6 +84,7 @@ pub fn test_client_invalid_client_id() {
     assert_eq!(result, Err(Error::InvalidToken))
 }
 
+#[cfg(feature = "blocking")]
 #[test]
 pub fn test_id_token() {
     let client = Client::builder(AUDIENCE)

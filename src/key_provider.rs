@@ -8,6 +8,7 @@ use std::time::Instant;
 
 const GOOGLE_CERT_URL: &str = "https://www.googleapis.com/oauth2/v3/certs";
 
+#[cfg(feature = "blocking")]
 pub trait KeyProvider {
     fn get_key(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()>;
 }
@@ -48,6 +49,7 @@ impl GoogleKeyProvider {
         }
         Ok(self.cached.as_ref().unwrap())
     }
+    #[cfg(feature = "blocking")]
     pub fn download_keys(&mut self) -> Result<&JsonWebKeySet, ()> {
         let result = reqwest::blocking::get(GOOGLE_CERT_URL).map_err(|_| ())?;
         self.process_response(&result.headers().clone(), &result.text().map_err(|_| ())?)
@@ -62,6 +64,7 @@ impl GoogleKeyProvider {
     }
 }
 
+#[cfg(feature = "blocking")]
 impl KeyProvider for GoogleKeyProvider {
     fn get_key(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()> {
         if let Some(ref cached_keys) = self.cached {
@@ -86,6 +89,7 @@ impl AsyncKeyProvider for GoogleKeyProvider {
     }
 }
 
+#[cfg(feature = "blocking")]
 #[test]
 pub fn test_google_provider() {
     let mut provider = GoogleKeyProvider::default();

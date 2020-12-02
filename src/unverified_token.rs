@@ -7,8 +7,10 @@ use serde::Deserialize;
 
 #[cfg(feature = "async")]
 use crate::key_provider::AsyncKeyProvider;
+#[cfg(feature = "blocking")]
+use crate::key_provider::KeyProvider;
 use crate::{
-    base64_decode, header::Header, jwk::JsonWebKey, key_provider::KeyProvider, Error,
+    base64_decode, header::Header, jwk::JsonWebKey, Error,
     RequiredClaims, Token,
 };
 
@@ -68,6 +70,7 @@ where
 }
 
 impl<P> UnverifiedToken<P> {
+    #[cfg(feature = "blocking")]
     pub fn verify<KP: KeyProvider>(self, key_provider: &Arc<Mutex<KP>>) -> Result<Token<P>, Error> {
         let key_id = self.header.key_id.clone();
         self.verify_with_key(key_provider.lock().unwrap().get_key(&key_id))

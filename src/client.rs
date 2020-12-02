@@ -1,7 +1,9 @@
 use crate::error::Error;
 #[cfg(feature = "async")]
 use crate::key_provider::AsyncKeyProvider;
-use crate::key_provider::{GoogleKeyProvider, KeyProvider};
+#[cfg(feature = "blocking")]
+use crate::key_provider::KeyProvider;
+use crate::key_provider::GoogleKeyProvider;
 use crate::token::IdPayload;
 use crate::token::Token;
 use crate::unverified_token::UnverifiedToken;
@@ -62,6 +64,7 @@ impl<KP: Default> GenericClient<KP> {
     }
 }
 
+#[cfg(feature = "blocking")]
 impl<KP: KeyProvider> GenericClient<KP> {
     pub fn verify_token_with_payload<P>(&self, token_string: &str) -> Result<Token<P>, Error>
     where
