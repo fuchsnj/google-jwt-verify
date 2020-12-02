@@ -4,7 +4,7 @@ use crate::key_provider::{AsyncKeyProvider, GoogleKeyProvider, KeyProvider};
 use crate::token::IdPayload;
 use crate::token::RequiredClaims;
 use crate::token::Token;
-use serde::Deserialize;
+use serde::Deserialize as DeserializeTrait;
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
@@ -171,7 +171,7 @@ impl Client {
 
     pub fn verify_token_with_payload<P>(&self, token_string: &str) -> Result<Token<P>, Error>
     where
-        for<'a> P: Deserialize<'a>,
+        for<'a> P: DeserializeTrait<'a>,
     {
         let mut segments = token_string.split('.');
         let encoded_header = segments.next().ok_or(Error::InvalidToken)?;
