@@ -11,6 +11,6 @@ matrix:
 before_script:
   - rustup component add rustfmt
 script:
-  - cargo build
-  - cargo test
+  - cargo build --all-features
+  - cargo test --all-features
   - cargo fmt --all -- --check
