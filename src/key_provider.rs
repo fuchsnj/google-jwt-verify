@@ -22,6 +22,7 @@ pub trait AsyncKeyProvider {
 pub struct GoogleKeyProvider {
     cached: Option<JsonWebKeySet>,
     expiration_time: Instant,
+    certificate_url: &'static str,
 }
 
 impl Default for GoogleKeyProvider {
@@ -29,11 +30,19 @@ impl Default for GoogleKeyProvider {
         Self {
             cached: None,
             expiration_time: Instant::now(),
+            certificate_url: GOOGLE_CERT_URL,
         }
     }
 }
 
 impl GoogleKeyProvider {
+    pub fn with_certificate_url(certificate_url: &'static str) -> Self {
+        Self {
+            cached: None,
+            expiration_time: Instant::now(),
+            certificate_url,
+        }
+    }
     fn process_response(&mut self, headers: &HeaderMap, text: &str) -> Result<&JsonWebKeySet, ()> {
         let mut expiration_time = None;
         let x = headers.get_all(CACHE_CONTROL);
@@ -51,12 +60,12 @@ impl GoogleKeyProvider {
     }
     #[cfg(feature = "blocking")]
     pub fn download_keys(&mut self) -> Result<&JsonWebKeySet, ()> {
-        let result = reqwest::blocking::get(GOOGLE_CERT_URL).map_err(|_| ())?;
+        let result = reqwest::blocking::get(self.certificate_url).map_err(|_| ())?;
         self.process_response(&result.headers().clone(), &result.text().map_err(|_| ())?)
     }
     #[cfg(feature = "async")]
     async fn download_keys_async(&mut self) -> Result<&JsonWebKeySet, ()> {
-        let result = reqwest::get(GOOGLE_CERT_URL).await.map_err(|_| ())?;
+        let result = reqwest::get(self.certificate_url).await.map_err(|_| ())?;
         self.process_response(
             &result.headers().clone(),
             &result.text().await.map_err(|_| ())?,

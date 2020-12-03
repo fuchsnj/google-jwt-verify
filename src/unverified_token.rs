@@ -9,7 +9,9 @@ use serde::Deserialize;
 use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
-use crate::{base64_decode, header::Header, jwk::JsonWebKey, Error, RequiredClaims, Token};
+use crate::{
+    base64_decode, client::Kind, header::Header, jwk::JsonWebKey, Error, RequiredClaims, Token,
+};
 
 pub struct UnverifiedToken<P> {
     header: Header,
@@ -26,7 +28,7 @@ where
     pub fn validate(
         token_string: &str,
         check_expiration: bool,
-        client_id: &str,
+        client_kind: &Kind,
     ) -> Result<Self, Error> {
         let mut segments = token_string.split('.');
         let encoded_header = segments.next().ok_or(Error::InvalidToken)?;
@@ -38,11 +40,11 @@ where
         let signature = base64_decode(&encoded_signature)?;
         let payload = base64_decode(&encoded_payload)?;
         let claims: RequiredClaims = serde_json::from_slice(&payload)?;
-        if claims.get_audience() != client_id {
+        if claims.get_audience() != client_kind.valid_audience() {
             return Err(Error::InvalidToken);
         }
         let issuer = claims.get_issuer();
-        if issuer != "https://accounts.google.com" && issuer != "accounts.google.com" {
+        if !client_kind.valid_issuers().contains(&issuer) {
             return Err(Error::InvalidToken);
         }
         let current_timestamp = SystemTime::now()
