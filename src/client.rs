@@ -1,9 +1,9 @@
 use crate::error::Error;
 #[cfg(feature = "async")]
 use crate::key_provider::AsyncKeyProvider;
+use crate::key_provider::GoogleKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
-use crate::key_provider::GoogleKeyProvider;
 use crate::token::IdPayload;
 use crate::token::Token;
 use crate::unverified_token::UnverifiedToken;

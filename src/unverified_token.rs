@@ -9,10 +9,7 @@ use serde::Deserialize;
 use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
-use crate::{
-    base64_decode, header::Header, jwk::JsonWebKey, Error,
-    RequiredClaims, Token,
-};
+use crate::{base64_decode, header::Header, jwk::JsonWebKey, Error, RequiredClaims, Token};
 
 pub struct UnverifiedToken<P> {
     header: Header,
