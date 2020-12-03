@@ -8,6 +8,7 @@ use crate::token::IdPayload;
 use crate::token::Token;
 use crate::unverified_token::UnverifiedToken;
 use serde::Deserialize;
+
 use std::sync::{Arc, Mutex};
 
 pub type Client = GenericClient<GoogleKeyProvider>;
