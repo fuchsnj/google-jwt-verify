@@ -1,86 +1,73 @@
-use crate::error::Error;
 #[cfg(feature = "async")]
 use crate::key_provider::AsyncKeyProvider;
-use crate::key_provider::GoogleKeyProvider;
 #[cfg(feature = "blocking")]
-use crate::key_provider::KeyProvider;
-use crate::token::IdPayload;
+use crate::key_provider::{FirebaseValidator, GoogleSigninValidator, KeyProvider};
 use crate::token::Token;
 use crate::unverified_token::UnverifiedToken;
+use crate::{
+    error::Error,
+    key_provider::{FirebaseAuthenticationKeyProvider, GoogleSigninKeyProvider},
+    validator::Validator,
+};
 use serde::Deserialize;
 
 use std::sync::{Arc, Mutex};
 
-pub type Client = GenericClient<GoogleKeyProvider>;
+pub type Client = GenericClient<GoogleSigninKeyProvider, GoogleSigninValidator>;
 
-pub struct GenericClientBuilder<KP> {
-    client_kind: Kind,
+type ClientBuilder = GenericClientBuilder<GoogleSigninKeyProvider, GoogleSigninValidator>;
+
+pub type FirebaseClient = GenericClient<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
+
+type FirebaseClientBuilder =
+    GenericClientBuilder<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
+
+pub struct GenericClientBuilder<KP, V> {
+    token_validator: V,
     key_provider: Arc<Mutex<KP>>,
     check_expiration: bool,
 }
 
-pub enum Kind {
-    SignIn { client_id: String },
-    Firebase { project_id: String },
-}
-
-impl Kind {
-    pub fn valid_issuers(&self) -> Vec<String> {
-        match self {
-            Kind::SignIn { client_id: _ } => vec![
-                "https://accounts.google.com".into(),
-                "accounts.google.com".into(),
-            ],
-            Kind::Firebase { project_id } => {
-                vec![format!("https://securetoken.google.com/{}", project_id)]
-            }
-        }
+impl Client {
+    pub fn builder(client_id: &str) -> ClientBuilder {
+        let validator = GoogleSigninValidator::with_client_id(client_id);
+        ClientBuilder::custom(validator)
     }
-    pub fn valid_audience(&self) -> &str {
-        match self {
-            Self::SignIn { client_id } => client_id,
-            Self::Firebase { project_id } => project_id,
-        }
-    }
-    pub fn certificate_url(&self) -> &'static str {
-        match self {
-            Kind::SignIn{client_id: _} => "https://www.googleapis.com/oauth2/v3/certs",
-            Kind::Firebase{project_id: _} => "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
-        }
+    pub fn new(client_id: &str) -> Self {
+        Client::builder(client_id).build()
     }
 }
 
-impl<KP: Default> GenericClientBuilder<KP> {
-    pub fn new(client_id: &str) -> GenericClientBuilder<KP> {
-        GenericClientBuilder::<KP> {
-            client_kind: Kind::SignIn {
-                client_id: client_id.to_owned(),
-            },
+impl FirebaseClientBuilder {
+    pub fn new(project_id: &str) -> Self {
+        let firebase_key_provider = FirebaseValidator::with_project_id(project_id);
+        Self::custom(firebase_key_provider)
+    }
+}
+
+impl<KP: Default, V> GenericClient<KP, V> {
+    pub fn custom_builder(validator: V) -> GenericClientBuilder<KP, V> {
+        GenericClientBuilder::<KP, V>::custom(validator)
+    }
+    pub fn custom(validator: V) -> GenericClient<KP, V> {
+        Self::custom_builder(validator).build()
+    }
+}
+
+impl<KP: Default, V> GenericClientBuilder<KP, V> {
+    pub fn custom<TV>(token_validator: TV) -> GenericClientBuilder<KP, TV> {
+        GenericClientBuilder {
+            token_validator,
             key_provider: Arc::new(Mutex::new(KP::default())),
             check_expiration: true,
         }
     }
 }
 
-impl GenericClientBuilder<GoogleKeyProvider> {
-    pub fn firebase(project_id: &str) -> GenericClientBuilder<GoogleKeyProvider> {
-        let client_kind = Kind::Firebase {
-            project_id: project_id.to_owned(),
-        };
-        let firebase_key_provider =
-            GoogleKeyProvider::with_certificate_url(client_kind.certificate_url());
-        GenericClientBuilder {
-            client_kind,
-            key_provider: Arc::new(Mutex::new(firebase_key_provider)),
-            check_expiration: true,
-        }
-    }
-}
-
-impl<KP> GenericClientBuilder<KP> {
-    pub fn custom_key_provider<T>(self, provider: T) -> GenericClientBuilder<T> {
-        GenericClientBuilder {
-            client_kind: self.client_kind,
+impl<KP, V> GenericClientBuilder<KP, V> {
+    pub fn custom_key_provider<T>(self, provider: T) -> GenericClientBuilder<T, V> {
+        GenericClientBuilder::<T, V> {
+            token_validator: self.token_validator,
             key_provider: Arc::new(Mutex::new(provider)),
             check_expiration: self.check_expiration,
         }
@@ -89,74 +76,83 @@ impl<KP> GenericClientBuilder<KP> {
         self.check_expiration = false;
         self
     }
-    pub fn build(self) -> GenericClient<KP> {
+    pub fn build(self) -> GenericClient<KP, V> {
         GenericClient {
-            client_kind: self.client_kind,
+            token_validator: self.token_validator,
             key_provider: self.key_provider,
             check_expiration: self.check_expiration,
         }
     }
 }
 
-pub struct GenericClient<T> {
-    client_kind: Kind,
+pub struct GenericClient<T, V> {
+    token_validator: V,
     key_provider: Arc<Mutex<T>>,
     check_expiration: bool,
 }
 
-impl<KP: Default> GenericClient<KP> {
-    pub fn builder(client_id: &str) -> GenericClientBuilder<KP> {
-        GenericClientBuilder::<KP>::new(client_id)
+impl FirebaseClient {
+    pub fn new(project_id: &str) -> Self {
+        Self::builder(project_id).build()
     }
-    pub fn new(client_id: &str) -> GenericClient<KP> {
-        GenericClientBuilder::new(client_id).build()
-    }
-}
-
-impl Client {
-    pub fn firebase(project_id: &str) -> Self {
-        GenericClientBuilder::firebase(project_id).build()
-    }
-    pub fn firebase_builder(project_id: &str) -> GenericClientBuilder<GoogleKeyProvider> {
-        GenericClientBuilder::firebase(project_id)
+    pub fn builder(
+        project_id: &str,
+    ) -> GenericClientBuilder<FirebaseAuthenticationKeyProvider, FirebaseValidator> {
+        GenericClientBuilder::new(project_id)
     }
 }
 
 #[cfg(feature = "blocking")]
-impl<KP: KeyProvider> GenericClient<KP> {
-    pub fn verify_token_with_payload<P>(&self, token_string: &str) -> Result<Token<P>, Error>
+impl<KP: KeyProvider, V: Validator> GenericClient<KP, V> {
+    pub fn verify_token_with_payload<P>(
+        &self,
+        token_string: &str,
+    ) -> Result<Token<P, V::RequiredClaims>, Error>
     where
         for<'a> P: Deserialize<'a>,
     {
-        let unverified_token =
-            UnverifiedToken::<P>::validate(token_string, self.check_expiration, &self.client_kind)?;
+        let unverified_token = UnverifiedToken::<P, _>::validate(
+            token_string,
+            self.check_expiration,
+            &self.token_validator,
+        )?;
+        println!("validated token");
         unverified_token.verify(&self.key_provider)
     }
 
-    pub fn verify_token(&self, token_string: &str) -> Result<Token<()>, Error> {
+    pub fn verify_token(&self, token_string: &str) -> Result<Token<(), V::RequiredClaims>, Error> {
         self.verify_token_with_payload::<()>(token_string)
     }
 
-    pub fn verify_id_token(&self, token_string: &str) -> Result<Token<IdPayload>, Error> {
+    pub fn verify_id_token(
+        &self,
+        token_string: &str,
+    ) -> Result<Token<V::IdPayload, V::RequiredClaims>, Error> {
         self.verify_token_with_payload(token_string)
     }
 }
 
 #[cfg(feature = "async")]
-impl<KP: AsyncKeyProvider> GenericClient<KP> {
+impl<KP: AsyncKeyProvider, V: Validator> GenericClient<KP, V> {
     pub async fn verify_token_with_payload_async<P>(
         &self,
         token_string: &str,
-    ) -> Result<Token<P>, Error>
+    ) -> Result<Token<P, V::RequiredClaims>, Error>
     where
         for<'a> P: Deserialize<'a>,
     {
-        let unverified_token =
-            UnverifiedToken::<P>::validate(token_string, self.check_expiration, &self.client_kind)?;
+        let unverified_token = UnverifiedToken::<P, V::RequiredClaims>::validate(
+            token_string,
+            self.check_expiration,
+            &self.token_validator,
+        )?;
         unverified_token.verify_async(&self.key_provider).await
     }
 
-    pub async fn verify_token_async(&self, token_string: &str) -> Result<Token<()>, Error> {
+    pub async fn verify_token_async(
+        &self,
+        token_string: &str,
+    ) -> Result<Token<(), V::RequiredClaims>, Error> {
         self.verify_token_with_payload_async::<()>(token_string)
             .await
     }
@@ -164,7 +160,7 @@ impl<KP: AsyncKeyProvider> GenericClient<KP> {
     pub async fn verify_id_token_async(
         &self,
         token_string: &str,
-    ) -> Result<Token<IdPayload>, Error> {
+    ) -> Result<Token<V::IdPayload, V::RequiredClaims>, Error> {
         self.verify_token_with_payload_async(token_string).await
     }
 }

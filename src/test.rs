@@ -1,11 +1,11 @@
 use super::*;
-use crate::error::Error;
 use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
 #[cfg(feature = "async")]
 use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
+use crate::error::Error;
 
 #[cfg(feature = "async")]
 use async_trait::async_trait;

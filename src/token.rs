@@ -1,18 +1,20 @@
 use serde_derive::Deserialize;
 
-pub struct Token<P> {
-    required_claims: RequiredClaims,
+use crate::claims::Claims;
+
+pub struct Token<P, C> {
+    required_claims: C,
     payload: P,
 }
 
-impl<P> Token<P> {
-    pub fn new(required_claims: RequiredClaims, payload: P) -> Token<P> {
+impl<P, C: Clone> Token<P, C> {
+    pub fn new(required_claims: C, payload: P) -> Token<P, C> {
         Token {
             required_claims,
             payload,
         }
     }
-    pub fn get_claims(&self) -> RequiredClaims {
+    pub fn get_claims(&self) -> C {
         self.required_claims.clone()
     }
     pub fn get_payload(&self) -> &P {
@@ -20,8 +22,48 @@ impl<P> Token<P> {
     }
 }
 
+#[derive(Deserialize, Debug, Clone)]
+pub struct FirebaseRequiredClaims {
+    #[serde(rename = "iss")]
+    issuer: String,
+
+    #[serde(rename = "sub")]
+    subject: String,
+
+    #[serde(rename = "aud")]
+    audience: String,
+
+    #[serde(rename = "auth_time")]
+    auth_time: u64,
+
+    #[serde(rename = "iat")]
+    issued_at: u64,
+
+    #[serde(rename = "exp")]
+    expires_at: u64,
+}
+
+impl FirebaseRequiredClaims {
+    pub fn valid_for_project(&self, project_id: &str) -> bool {
+        self.audience == project_id
+            && self.issuer == format!("https://securetoken.google.com/{}", project_id)
+    }
+}
+
+impl Claims for FirebaseRequiredClaims {
+    fn get_issued_at(&self) -> u64 {
+        self.issued_at
+    }
+    fn get_expires_at(&self) -> u64 {
+        self.expires_at
+    }
+    fn get_subject(&self) -> &str {
+        self.subject.as_str()
+    }
+}
+
 #[derive(Deserialize, Clone)]
-pub struct RequiredClaims {
+pub struct GoogleSigninRequiredClaims {
     #[serde(rename = "iss")]
     issuer: String,
 
@@ -41,7 +83,12 @@ pub struct RequiredClaims {
     expires_at: u64,
 }
 
-impl RequiredClaims {
+impl GoogleSigninRequiredClaims {
+    pub fn valid_for_client(&self, client_id: &str) -> bool {
+        self.audience == client_id
+            && ["https://accounts.google.com", "accounts.google.com"]
+                .contains(&self.issuer.as_str())
+    }
     pub fn get_issuer(&self) -> String {
         self.issuer.clone()
     }
@@ -62,8 +109,25 @@ impl RequiredClaims {
     }
 }
 
+impl Claims for GoogleSigninRequiredClaims {
+    fn get_issued_at(&self) -> u64 {
+        self.issued_at
+    }
+    fn get_expires_at(&self) -> u64 {
+        self.expires_at
+    }
+    fn get_subject(&self) -> &str {
+        self.subject.as_str()
+    }
+}
+
 #[derive(Deserialize, Clone)]
-pub struct IdPayload {
+pub struct FirebaseIdPayload {
+    name: String,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct GoogleSigninIdPayload {
     email: String,
     email_verified: bool,
     name: String,
@@ -74,7 +138,7 @@ pub struct IdPayload {
     hd: Option<String>,
 }
 
-impl IdPayload {
+impl GoogleSigninIdPayload {
     pub fn get_email(&self) -> String {
         self.email.clone()
     }
