@@ -75,10 +75,10 @@ impl<P> UnverifiedToken<P> {
     #[cfg(feature = "async")]
     pub async fn verify_async<KP: AsyncKeyProvider>(
         self,
-        key_provider: &Arc<Mutex<KP>>,
+        key_provider: &Arc<tokio::sync::Mutex<KP>>,
     ) -> Result<Token<P>, Error> {
         let key_id = self.header.key_id.clone();
-        self.verify_with_key(key_provider.lock().unwrap().get_key_async(&key_id).await)
+        self.verify_with_key(key_provider.lock().await.get_key_async(&key_id).await)
     }
     fn verify_with_key(self, key: Result<Option<JsonWebKey>, ()>) -> Result<Token<P>, Error> {
         let key = match key {

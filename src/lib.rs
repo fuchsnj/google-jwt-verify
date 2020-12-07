@@ -11,6 +11,8 @@ mod token;
 mod unverified_token;
 
 pub use crate::client::Client;
+#[cfg(feature = "async")]
+pub use crate::client::TokioClient;
 pub use crate::token::{IdPayload, RequiredClaims, Token};
 pub use error::Error;
 
