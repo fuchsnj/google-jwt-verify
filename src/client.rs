@@ -13,18 +13,29 @@ use serde::Deserialize;
 
 use std::sync::{Arc, Mutex};
 
-pub type Client = GenericClient<GoogleSigninKeyProvider, GoogleSigninValidator>;
+pub type Client = GenericBlockingClient<GoogleSigninKeyProvider, GoogleSigninValidator>;
 
-type ClientBuilder = GenericClientBuilder<GoogleSigninKeyProvider, GoogleSigninValidator>;
+type GenericBlockingClient<KP, V> = GenericClient<Arc<Mutex<KP>>, V>;
 
-pub type FirebaseClient = GenericClient<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
+type ClientBuilder = GenericBlockingClientBuilder<GoogleSigninKeyProvider, GoogleSigninValidator>;
+
+type GenericBlockingClientBuilder<KP, V> = GenericClientBuilder<Arc<Mutex<KP>>, V>;
+
+pub type FirebaseClient = GenericBlockingClient<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
 
 type FirebaseClientBuilder =
-    GenericClientBuilder<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
+    GenericBlockingClientBuilder<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
+
+#[cfg(feature = "async")]
+pub type GenericTokioClient<KP, V> = GenericClient<Arc<tokio::sync::Mutex<KP>>, V>;
+
+
+#[cfg(feature = "async")]
+type GenericTokioClientBuilder<KP, V> = GenericClientBuilder<Arc<tokio::sync::Mutex<KP>>, V>;
 
 pub struct GenericClientBuilder<KP, V> {
     token_validator: V,
-    key_provider: Arc<Mutex<KP>>,
+    key_provider: KP,
     check_expiration: bool,
 }
 
@@ -36,6 +47,12 @@ impl Client {
     pub fn new(client_id: &str) -> Self {
         Client::builder(client_id).build()
     }
+    pub fn firebase(project_id: &str) -> FirebaseClientBuilder {
+        FirebaseClientBuilder::new(project_id)
+    }
+    pub fn google_signin(client_id: &str) -> ClientBuilder {
+        Self::builder(client_id)
+    }
 }
 
 impl FirebaseClientBuilder {
@@ -45,33 +62,59 @@ impl FirebaseClientBuilder {
     }
 }
 
-impl<KP: Default, V> GenericClient<KP, V> {
-    pub fn custom_builder(validator: V) -> GenericClientBuilder<KP, V> {
-        GenericClientBuilder::<KP, V>::custom(validator)
+impl<KP: Default, V> GenericBlockingClient<KP, V> {
+    pub fn custom_builder(validator: V) -> GenericBlockingClientBuilder<KP, V> {
+        GenericBlockingClientBuilder::<KP, V>::custom(validator)
     }
-    pub fn custom(validator: V) -> GenericClient<KP, V> {
+    pub fn custom(validator: V) -> Self {
         Self::custom_builder(validator).build()
     }
 }
 
-impl<KP: Default, V> GenericClientBuilder<KP, V> {
-    pub fn custom<TV>(token_validator: TV) -> GenericClientBuilder<KP, TV> {
-        GenericClientBuilder {
+#[cfg(feature = "async")]
+impl<KP: Default, V> GenericTokioClientBuilder<KP, V> {
+    pub fn custom<TV>(token_validator: TV) -> GenericTokioClientBuilder<KP, TV> {
+        GenericTokioClientBuilder {
+            token_validator,
+            key_provider: Arc::new(tokio::sync::Mutex::new(KP::default())),
+            check_expiration: true,
+        }
+    }
+    pub fn custom_key_provider<T>(self, provider: T) -> GenericTokioClientBuilder<T, V> {
+        GenericTokioClientBuilder {
+            token_validator: self.token_validator,
+            key_provider: Arc::new(tokio::sync::Mutex::new(provider)),
+            check_expiration: self.check_expiration,
+        }
+    }
+}
+
+impl<KP: Default, V> GenericBlockingClientBuilder<KP, V> {
+    pub fn custom<TV>(token_validator: TV) -> GenericBlockingClientBuilder<KP, TV> {
+        GenericBlockingClientBuilder {
             token_validator,
             key_provider: Arc::new(Mutex::new(KP::default())),
             check_expiration: true,
         }
     }
-}
-
-impl<KP, V> GenericClientBuilder<KP, V> {
-    pub fn custom_key_provider<T>(self, provider: T) -> GenericClientBuilder<T, V> {
-        GenericClientBuilder::<T, V> {
+    pub fn custom_key_provider<T>(self, provider: T) -> GenericBlockingClientBuilder<T, V> {
+        GenericBlockingClientBuilder {
             token_validator: self.token_validator,
             key_provider: Arc::new(Mutex::new(provider)),
             check_expiration: self.check_expiration,
         }
     }
+    #[cfg(feature = "async")]
+    pub fn tokio(self) -> GenericTokioClientBuilder<KP, V> {
+        GenericTokioClientBuilder {
+            token_validator: self.token_validator,
+            key_provider: Arc::new(tokio::sync::Mutex::new(KP::default())),
+            check_expiration: self.check_expiration
+        }
+    }
+}
+
+impl<KP, V> GenericClientBuilder<KP, V> {
     pub fn unsafe_ignore_expiration(mut self) -> Self {
         self.check_expiration = false;
         self
@@ -87,7 +130,7 @@ impl<KP, V> GenericClientBuilder<KP, V> {
 
 pub struct GenericClient<T, V> {
     token_validator: V,
-    key_provider: Arc<Mutex<T>>,
+    key_provider: T,
     check_expiration: bool,
 }
 
@@ -97,13 +140,13 @@ impl FirebaseClient {
     }
     pub fn builder(
         project_id: &str,
-    ) -> GenericClientBuilder<FirebaseAuthenticationKeyProvider, FirebaseValidator> {
-        GenericClientBuilder::new(project_id)
+    ) -> GenericBlockingClientBuilder<FirebaseAuthenticationKeyProvider, FirebaseValidator> {
+        GenericBlockingClientBuilder::new(project_id)
     }
 }
 
 #[cfg(feature = "blocking")]
-impl<KP: KeyProvider, V: Validator> GenericClient<KP, V> {
+impl<KP: KeyProvider, V: Validator> GenericBlockingClient<KP, V> {
     pub fn verify_token_with_payload<P>(
         &self,
         token_string: &str,
@@ -133,8 +176,8 @@ impl<KP: KeyProvider, V: Validator> GenericClient<KP, V> {
 }
 
 #[cfg(feature = "async")]
-impl<KP: AsyncKeyProvider, V: Validator> GenericClient<KP, V> {
-    pub async fn verify_token_with_payload_async<P>(
+impl<KP: AsyncKeyProvider, V: Validator> GenericTokioClient<KP, V> {
+    pub async fn verify_token_with_payload<P>(
         &self,
         token_string: &str,
     ) -> Result<Token<P, V::RequiredClaims>, Error>
@@ -149,18 +192,18 @@ impl<KP: AsyncKeyProvider, V: Validator> GenericClient<KP, V> {
         unverified_token.verify_async(&self.key_provider).await
     }
 
-    pub async fn verify_token_async(
+    pub async fn verify_token(
         &self,
         token_string: &str,
     ) -> Result<Token<(), V::RequiredClaims>, Error> {
-        self.verify_token_with_payload_async::<()>(token_string)
+        self.verify_token_with_payload::<()>(token_string)
             .await
     }
 
-    pub async fn verify_id_token_async(
+    pub async fn verify_id_token(
         &self,
         token_string: &str,
     ) -> Result<Token<V::IdPayload, V::RequiredClaims>, Error> {
-        self.verify_token_with_payload_async(token_string).await
+        self.verify_token_with_payload(token_string).await
     }
 }

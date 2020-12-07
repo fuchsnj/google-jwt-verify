@@ -1,7 +1,7 @@
 use serde_derive::Deserialize;
-
 use crate::claims::Claims;
 
+#[derive(Debug, PartialEq)]
 pub struct Token<P, C> {
     required_claims: C,
     payload: P,
@@ -62,7 +62,7 @@ impl Claims for FirebaseRequiredClaims {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Debug, PartialEq, Clone)]
 pub struct GoogleSigninRequiredClaims {
     #[serde(rename = "iss")]
     issuer: String,
