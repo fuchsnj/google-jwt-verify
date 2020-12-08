@@ -48,6 +48,9 @@ impl FirebaseRequiredClaims {
         self.audience == project_id
             && self.issuer == format!("https://securetoken.google.com/{}", project_id)
     }
+    pub fn get_subject(&self) -> String {
+        self.subject.clone()
+    }
 }
 
 impl Claims for FirebaseRequiredClaims {
@@ -56,9 +59,6 @@ impl Claims for FirebaseRequiredClaims {
     }
     fn get_expires_at(&self) -> u64 {
         self.expires_at
-    }
-    fn get_subject(&self) -> &str {
-        self.subject.as_str()
     }
 }
 
@@ -115,9 +115,6 @@ impl Claims for GoogleSigninRequiredClaims {
     }
     fn get_expires_at(&self) -> u64 {
         self.expires_at
-    }
-    fn get_subject(&self) -> &str {
-        self.subject.as_str()
     }
 }
 

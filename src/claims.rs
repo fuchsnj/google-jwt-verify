@@ -6,5 +6,4 @@ where
 {
     fn get_issued_at(&self) -> u64;
     fn get_expires_at(&self) -> u64;
-    fn get_subject(&self) -> &str;
 }
