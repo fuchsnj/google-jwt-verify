@@ -1,7 +1,8 @@
 #[cfg(feature = "async")]
 use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
-use crate::key_provider::{FirebaseValidator, GoogleSigninValidator, KeyProvider};
+use crate::key_provider::KeyProvider;
+use crate::key_provider::{FirebaseValidator, GoogleSigninValidator};
 use crate::token::Token;
 use crate::unverified_token::UnverifiedToken;
 use crate::{
