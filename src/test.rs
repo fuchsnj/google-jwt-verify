@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use super::*;
-use crate::{error::Error, client::GoogleSigninTokioClient};
+#[cfg(feature = "async")]
+use crate::client::GoogleSigninTokioClient;
+use crate::error::Error;
 use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
 #[cfg(feature = "async")]
@@ -124,12 +126,11 @@ async fn decode_keys_async() {
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn test_client_async() {
-    let client = Client::builder(
-        "37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com",
-    )
-    .custom_key_provider(TestKeyProvider::default())
-    .tokio()
-    .build();
+    let client =
+        Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
+            .custom_key_provider(TestKeyProvider::default())
+            .tokio()
+            .build();
     assert_eq!(
         client.verify_token(TOKEN).await.map(|_| ()),
         Err(Error::Expired)

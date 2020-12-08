@@ -22,14 +22,18 @@ type ClientBuilder = GenericBlockingClientBuilder<GoogleSigninKeyProvider, Googl
 
 type GenericBlockingClientBuilder<KP, V> = GenericClientBuilder<Arc<Mutex<KP>>, V>;
 
-pub type FirebaseClient = GenericBlockingClient<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
+pub type FirebaseClient =
+    GenericBlockingClient<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
 
 type FirebaseClientBuilder =
     GenericBlockingClientBuilder<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
 
-#[cfg(feature = "async")]
-pub type GenericTokioClient<KP, V> = GenericClient<Arc<tokio::sync::Mutex<KP>>, V>;
+#[cfg(all(test, feature = "async"))]
+pub type GoogleSigninTokioClient =
+    GenericTokioClient<GoogleSigninKeyProvider, GoogleSigninValidator>;
 
+#[cfg(feature = "async")]
+type GenericTokioClient<KP, V> = GenericClient<Arc<tokio::sync::Mutex<KP>>, V>;
 
 #[cfg(feature = "async")]
 type GenericTokioClientBuilder<KP, V> = GenericClientBuilder<Arc<tokio::sync::Mutex<KP>>, V>;
@@ -48,11 +52,17 @@ impl Client {
     pub fn new(client_id: &str) -> Self {
         Client::builder(client_id).build()
     }
-    pub fn firebase(project_id: &str) -> FirebaseClientBuilder {
+    pub fn firebase_builder(project_id: &str) -> FirebaseClientBuilder {
         FirebaseClientBuilder::new(project_id)
     }
-    pub fn google_signin(client_id: &str) -> ClientBuilder {
+    pub fn google_signin_builder(client_id: &str) -> ClientBuilder {
         Self::builder(client_id)
+    }
+    pub fn new_firebase(project_id: &str) -> FirebaseClient {
+        FirebaseClient::new(project_id)
+    }
+    pub fn new_google_signin(client_id: &str) -> Self {
+        Self::new(client_id)
     }
 }
 
@@ -110,7 +120,7 @@ impl<KP: Default, V> GenericBlockingClientBuilder<KP, V> {
         GenericTokioClientBuilder {
             token_validator: self.token_validator,
             key_provider: Arc::new(tokio::sync::Mutex::new(KP::default())),
-            check_expiration: self.check_expiration
+            check_expiration: self.check_expiration,
         }
     }
 }
@@ -197,8 +207,7 @@ impl<KP: AsyncKeyProvider, V: Validator> GenericTokioClient<KP, V> {
         &self,
         token_string: &str,
     ) -> Result<Token<(), V::RequiredClaims>, Error> {
-        self.verify_token_with_payload::<()>(token_string)
-            .await
+        self.verify_token_with_payload::<()>(token_string).await
     }
 
     pub async fn verify_id_token(

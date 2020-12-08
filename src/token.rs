@@ -1,5 +1,5 @@
-use serde_derive::Deserialize;
 use crate::claims::Claims;
+use serde_derive::Deserialize;
 
 #[derive(Debug, PartialEq)]
 pub struct Token<P, C> {

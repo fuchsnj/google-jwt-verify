@@ -1,9 +1,9 @@
+#[cfg(feature = "blocking")]
+use std::sync::Mutex;
 use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
-#[cfg(feature = "blocking")]
-use std::sync::Mutex;
 
 use serde::Deserialize;
 
