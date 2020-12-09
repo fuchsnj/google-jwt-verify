@@ -1,6 +1,5 @@
-use crate::algorithm::Algorithm;
 use crate::base64_decode;
-use crate::error::Error;
+use crate::{algorithm::Algorithm, error::VerificationError};
 use openssl::bn::BigNum;
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
@@ -34,18 +33,24 @@ impl JsonWebKey {
         self.id.clone()
     }
 
-    pub fn verify(&self, body: &[u8], signature: &[u8]) -> Result<(), Error> {
+    pub fn verify(&self, body: &[u8], signature: &[u8]) -> Result<(), VerificationError> {
         match self.algorithm {
             Algorithm::RS256 => {
-                let n = BigNum::from_slice(&base64_decode(&self.n)?)?;
-                let e = BigNum::from_slice(&base64_decode(&self.e)?)?;
+                let n = BigNum::from_slice(
+                    &base64_decode(&self.n).map_err(|e| VerificationError::Modulus(e.into()))?,
+                )
+                .map_err(|e| VerificationError::Modulus(e.into()))?;
+                let e = BigNum::from_slice(
+                    &base64_decode(&self.e).map_err(|e| VerificationError::Exponent(e.into()))?,
+                )
+                .map_err(|e| VerificationError::Exponent(e.into()))?;
                 let key = PKey::from_rsa(Rsa::from_public_components(n, e)?)?;
                 let mut verifier = Verifier::new(MessageDigest::sha256(), &key)?;
                 verifier.update(body)?;
                 verifier.verify(signature)?;
                 Ok(())
             }
-            _ => Err(Error::UnsupportedAlgorithm(self.algorithm)),
+            _ => Err(VerificationError::UnsupportedAlgorithm(self.algorithm)),
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::claims::Claims;
+use crate::key_provider::FirebaseClaimsError;
 use serde_derive::Deserialize;
 
 #[derive(Debug, PartialEq)]
@@ -44,21 +44,27 @@ pub struct FirebaseRequiredClaims {
 }
 
 impl FirebaseRequiredClaims {
-    pub fn valid_for_project(&self, project_id: &str) -> bool {
-        self.audience == project_id
-            && self.issuer == format!("https://securetoken.google.com/{}", project_id)
+    pub fn validate_for_project(
+        &self,
+        project_id: &str,
+        current_timestamp: u64,
+    ) -> Result<(), FirebaseClaimsError> {
+        if self.audience != project_id {
+            Err(FirebaseClaimsError::InvalidAudience)
+        } else if self.issuer != format!("https://securetoken.google.com/{}", project_id) {
+            Err(FirebaseClaimsError::InvalidIssuer)
+        } else if current_timestamp < self.auth_time {
+            Err(FirebaseClaimsError::AuthenticatedInTheFuture)
+        } else if current_timestamp < self.issued_at {
+            Err(FirebaseClaimsError::IssuedInTheFuture)
+        } else if self.expires_at < current_timestamp {
+            Err(FirebaseClaimsError::Expired)
+        } else {
+            Ok(())
+        }
     }
     pub fn get_subject(&self) -> String {
         self.subject.clone()
-    }
-}
-
-impl Claims for FirebaseRequiredClaims {
-    fn get_issued_at(&self) -> u64 {
-        self.issued_at
-    }
-    fn get_expires_at(&self) -> u64 {
-        self.expires_at
     }
 }
 
@@ -84,10 +90,24 @@ pub struct GoogleSigninRequiredClaims {
 }
 
 impl GoogleSigninRequiredClaims {
-    pub fn valid_for_client(&self, client_id: &str) -> bool {
-        self.audience == client_id
-            && ["https://accounts.google.com", "accounts.google.com"]
-                .contains(&self.issuer.as_str())
+    pub fn validate_for_client(
+        &self,
+        client_id: &str,
+        current_timestamp: u64,
+    ) -> Result<(), GoogleSigninClaimsError> {
+        if self.audience != client_id {
+            Err(GoogleSigninClaimsError::InvalidAudience)
+        } else if !["https://accounts.google.com", "accounts.google.com"]
+            .contains(&self.issuer.as_str())
+        {
+            Err(GoogleSigninClaimsError::InvalidIssuer)
+        } else if self.expires_at < current_timestamp {
+            Err(GoogleSigninClaimsError::Expired)
+        } else if self.expires_at < self.issued_at {
+            Err(GoogleSigninClaimsError::IssuedAfterExpiry)
+        } else {
+            Ok(())
+        }
     }
     pub fn get_issuer(&self) -> String {
         self.issuer.clone()
@@ -109,13 +129,12 @@ impl GoogleSigninRequiredClaims {
     }
 }
 
-impl Claims for GoogleSigninRequiredClaims {
-    fn get_issued_at(&self) -> u64 {
-        self.issued_at
-    }
-    fn get_expires_at(&self) -> u64 {
-        self.expires_at
-    }
+#[derive(Debug, PartialEq)]
+pub enum GoogleSigninClaimsError {
+    InvalidAudience,
+    InvalidIssuer,
+    Expired,
+    IssuedAfterExpiry,
 }
 
 #[derive(Deserialize, Clone)]
@@ -123,7 +142,7 @@ pub struct FirebaseIdPayload {
     name: String,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct GoogleSigninIdPayload {
     email: String,
     email_verified: bool,

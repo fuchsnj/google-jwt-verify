@@ -1,9 +1,6 @@
+use std::sync::Arc;
 #[cfg(feature = "blocking")]
 use std::sync::Mutex;
-use std::{
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
 
 use serde::Deserialize;
 
@@ -11,9 +8,10 @@ use serde::Deserialize;
 use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
+use crate::{base64_decode, header::Header, jwk::JsonWebKey, validator::Validator, Error, Token};
 use crate::{
-    base64_decode, claims::Claims, header::Header, jwk::JsonWebKey, validator::Validator, Error,
-    Token,
+    error::TokenSegmentError,
+    error::{JsonDeserializationError, TokenValidationError},
 };
 
 pub struct UnverifiedToken<P, C> {
@@ -24,39 +22,44 @@ pub struct UnverifiedToken<P, C> {
     json_payload: P,
 }
 
-impl<P, C: Claims> UnverifiedToken<P, C>
+impl<P, C> UnverifiedToken<P, C>
 where
     for<'a> P: Deserialize<'a>,
+    for<'a> C: Deserialize<'a> + Clone,
 {
-    pub fn validate<V: Validator<RequiredClaims = C>>(
+    pub fn validate<V>(
         token_string: &str,
-        check_expiration: bool,
         validator: &V,
-    ) -> Result<Self, Error> {
+        current_timestamp: u64,
+    ) -> Result<Self, TokenValidationError<V::ClaimsError>>
+    where
+        V: Validator<RequiredClaims = C>,
+    {
         let mut segments = token_string.split('.');
-        let encoded_header = segments.next().ok_or(Error::InvalidToken)?;
-        let encoded_payload = segments.next().ok_or(Error::InvalidToken)?;
-        let encoded_signature = segments.next().ok_or(Error::InvalidToken)?;
+        let encoded_header = segments
+            .next()
+            .ok_or(TokenValidationError::Header(TokenSegmentError::Absent))?;
+        let encoded_payload = segments
+            .next()
+            .ok_or(TokenValidationError::Payload(TokenSegmentError::Absent))?;
+        let encoded_signature = segments
+            .next()
+            .ok_or(TokenValidationError::Signature(TokenSegmentError::Absent))?;
 
-        let header: Header = serde_json::from_slice(&base64_decode(&encoded_header)?)?;
+        let header: Header = serde_json::from_slice(
+            &base64_decode(&encoded_header).map_err(|e| TokenValidationError::Header(e.into()))?,
+        )
+        .map_err(|e| TokenValidationError::Json(JsonDeserializationError::Header(e)))?;
         let signed_body = format!("{}.{}", encoded_header, encoded_payload);
-        let signature = base64_decode(&encoded_signature)?;
-        let payload = base64_decode(&encoded_payload)?;
-        let claims: V::RequiredClaims = serde_json::from_slice(&payload)?;
-        if !validator.claims_are_valid(&claims) {
-            return Err(Error::InvalidToken);
-        }
-        let current_timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        if check_expiration && claims.get_expires_at() < current_timestamp {
-            return Err(Error::Expired);
-        }
-        if claims.get_issued_at() > claims.get_expires_at() {
-            return Err(Error::InvalidToken);
-        }
-        let json_payload: P = serde_json::from_slice(&payload)?;
+        let signature = base64_decode(&encoded_signature)
+            .map_err(|e| TokenValidationError::Signature(e.into()))?;
+        let payload =
+            base64_decode(&encoded_payload).map_err(|e| TokenValidationError::Payload(e.into()))?;
+        let claims: V::RequiredClaims = serde_json::from_slice(&payload)
+            .map_err(|e| TokenValidationError::Json(JsonDeserializationError::Claims(e)))?;
+        validator.validate_claims(&claims, current_timestamp)?;
+        let json_payload: P = serde_json::from_slice(&payload)
+            .map_err(|e| TokenValidationError::Json(JsonDeserializationError::Payload(e)))?;
         Ok(Self {
             claims,
             signature,
@@ -67,27 +70,33 @@ where
     }
 }
 
-impl<P, C: Clone> UnverifiedToken<P, C> {
+impl<P, C> UnverifiedToken<P, C>
+where
+    C: Clone + for<'a> Deserialize<'a>,
+{
     #[cfg(feature = "blocking")]
-    pub fn verify<KP: KeyProvider>(
+    pub fn verify<KP: KeyProvider, V: Validator<RequiredClaims = C>>(
         self,
         key_provider: &Arc<Mutex<KP>>,
-    ) -> Result<Token<P, C>, Error> {
+    ) -> Result<Token<P, C>, Error<V::ClaimsError>> {
         let key_id = self.header.key_id.clone();
-        self.verify_with_key(key_provider.lock().unwrap().get_key(&key_id))
+        self.verify_with_key::<V>(key_provider.lock().unwrap().get_key(&key_id))
     }
     #[cfg(feature = "async")]
-    pub async fn verify_async<KP: AsyncKeyProvider>(
+    pub async fn verify_async<KP: AsyncKeyProvider, V: Validator<RequiredClaims = C>>(
         self,
         key_provider: &Arc<tokio::sync::Mutex<KP>>,
-    ) -> Result<Token<P, C>, Error> {
+    ) -> Result<Token<P, V::RequiredClaims>, Error<V::ClaimsError>> {
         let key_id = self.header.key_id.clone();
-        self.verify_with_key(key_provider.lock().await.get_key_async(&key_id).await)
+        self.verify_with_key::<V>(key_provider.lock().await.get_key_async(&key_id).await)
     }
-    fn verify_with_key(self, key: Result<Option<JsonWebKey>, ()>) -> Result<Token<P, C>, Error> {
+    fn verify_with_key<V: Validator<RequiredClaims = C>>(
+        self,
+        key: Result<Option<JsonWebKey>, ()>,
+    ) -> Result<Token<P, V::RequiredClaims>, Error<V::ClaimsError>> {
         let key = match key {
             Ok(Some(key)) => key,
-            Ok(None) => return Err(Error::InvalidToken),
+            Ok(None) => return Err(Error::KeyDoesNotExist),
             Err(_) => return Err(Error::RetrieveKeyFailure),
         };
         key.verify(self.signed_body.as_bytes(), &self.signature)?;

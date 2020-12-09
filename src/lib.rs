@@ -2,12 +2,12 @@
 mod test;
 
 mod algorithm;
-mod claims;
 mod client;
 mod error;
 mod header;
 mod jwk;
 mod key_provider;
+mod time;
 mod token;
 mod unverified_token;
 mod validator;

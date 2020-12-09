@@ -1,8 +1,8 @@
-use crate::jwk::JsonWebKeySet;
+use crate::{error::TokenClaimsError, jwk::JsonWebKeySet};
 use crate::{
     jwk::JsonWebKey,
     token::{
-        FirebaseIdPayload, FirebaseRequiredClaims, GoogleSigninIdPayload,
+        FirebaseIdPayload, FirebaseRequiredClaims, GoogleSigninClaimsError, GoogleSigninIdPayload,
         GoogleSigninRequiredClaims,
     },
     validator::Validator,
@@ -62,10 +62,17 @@ impl GoogleKeyProvider for GoogleSigninKeyProvider {
 impl Validator for GoogleSigninValidator {
     type RequiredClaims = GoogleSigninRequiredClaims;
     type IdPayload = GoogleSigninIdPayload;
-    fn claims_are_valid(&self, claims: &Self::RequiredClaims) -> bool {
-        claims.valid_for_client(&self.client_id)
+    type ClaimsError = GoogleSigninClaimsError;
+    fn validate_claims(
+        &self,
+        claims: &Self::RequiredClaims,
+        current_timestamp: u64,
+    ) -> Result<(), GoogleSigninClaimsError> {
+        claims.validate_for_client(&self.client_id, current_timestamp)
     }
 }
+
+impl TokenClaimsError for GoogleSigninClaimsError {}
 
 #[derive(Default)]
 pub struct FirebaseAuthenticationKeyProvider {
@@ -87,10 +94,25 @@ pub struct FirebaseValidator {
 impl Validator for FirebaseValidator {
     type RequiredClaims = FirebaseRequiredClaims;
     type IdPayload = FirebaseIdPayload;
-    fn claims_are_valid(&self, claims: &Self::RequiredClaims) -> bool {
-        claims.valid_for_project(&self.project_id)
+    type ClaimsError = FirebaseClaimsError;
+    fn validate_claims(
+        &self,
+        claims: &Self::RequiredClaims,
+        current_timestamp: u64,
+    ) -> Result<(), FirebaseClaimsError> {
+        claims.validate_for_project(&self.project_id, current_timestamp)
     }
 }
+
+pub enum FirebaseClaimsError {
+    InvalidAudience,
+    InvalidIssuer,
+    Expired,
+    IssuedInTheFuture,
+    AuthenticatedInTheFuture,
+}
+
+impl TokenClaimsError for FirebaseClaimsError {}
 
 impl GoogleKeyProvider for FirebaseAuthenticationKeyProvider {
     fn valid_cache(&self) -> Option<&JsonWebKeySet> {

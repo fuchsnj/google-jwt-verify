@@ -1,9 +1,14 @@
 use serde::Deserialize;
 
-use crate::claims::Claims;
+use crate::error::TokenClaimsError;
 
 pub trait Validator {
-    type RequiredClaims: Claims;
+    type RequiredClaims: for<'a> Deserialize<'a> + Clone;
     type IdPayload: for<'a> Deserialize<'a>;
-    fn claims_are_valid(&self, claims: &Self::RequiredClaims) -> bool;
+    type ClaimsError: TokenClaimsError;
+    fn validate_claims(
+        &self,
+        claims: &Self::RequiredClaims,
+        current_timestamp: u64,
+    ) -> Result<(), Self::ClaimsError>;
 }

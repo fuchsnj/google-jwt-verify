@@ -3,6 +3,7 @@ use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
 use crate::key_provider::{FirebaseValidator, GoogleSigninValidator};
+use crate::time::current_timestamp;
 use crate::token::Token;
 use crate::unverified_token::UnverifiedToken;
 use crate::{
@@ -41,7 +42,7 @@ type GenericTokioClientBuilder<KP, V> = GenericClientBuilder<Arc<tokio::sync::Mu
 pub struct GenericClientBuilder<KP, V> {
     token_validator: V,
     key_provider: KP,
-    check_expiration: bool,
+    mocked_timestamp: Option<u64>,
 }
 
 impl Client {
@@ -88,14 +89,14 @@ impl<KP: Default, V> GenericTokioClientBuilder<KP, V> {
         GenericTokioClientBuilder {
             token_validator,
             key_provider: Arc::new(tokio::sync::Mutex::new(KP::default())),
-            check_expiration: true,
+            mocked_timestamp: None,
         }
     }
     pub fn custom_key_provider<T>(self, provider: T) -> GenericTokioClientBuilder<T, V> {
         GenericTokioClientBuilder {
             token_validator: self.token_validator,
             key_provider: Arc::new(tokio::sync::Mutex::new(provider)),
-            check_expiration: self.check_expiration,
+            mocked_timestamp: self.mocked_timestamp,
         }
     }
 }
@@ -105,14 +106,14 @@ impl<KP: Default, V> GenericBlockingClientBuilder<KP, V> {
         GenericBlockingClientBuilder {
             token_validator,
             key_provider: Arc::new(Mutex::new(KP::default())),
-            check_expiration: true,
+            mocked_timestamp: None,
         }
     }
     pub fn custom_key_provider<T>(self, provider: T) -> GenericBlockingClientBuilder<T, V> {
         GenericBlockingClientBuilder {
             token_validator: self.token_validator,
             key_provider: Arc::new(Mutex::new(provider)),
-            check_expiration: self.check_expiration,
+            mocked_timestamp: self.mocked_timestamp,
         }
     }
     #[cfg(feature = "async")]
@@ -120,21 +121,21 @@ impl<KP: Default, V> GenericBlockingClientBuilder<KP, V> {
         GenericTokioClientBuilder {
             token_validator: self.token_validator,
             key_provider: Arc::new(tokio::sync::Mutex::new(KP::default())),
-            check_expiration: self.check_expiration,
+            mocked_timestamp: self.mocked_timestamp,
         }
     }
 }
 
 impl<KP, V> GenericClientBuilder<KP, V> {
-    pub fn unsafe_ignore_expiration(mut self) -> Self {
-        self.check_expiration = false;
+    pub fn unsafe_mock_timestamp(mut self, mocked_timestamp: u64) -> Self {
+        self.mocked_timestamp = Some(mocked_timestamp);
         self
     }
     pub fn build(self) -> GenericClient<KP, V> {
         GenericClient {
             token_validator: self.token_validator,
             key_provider: self.key_provider,
-            check_expiration: self.check_expiration,
+            mocked_timestamp: self.mocked_timestamp,
         }
     }
 }
@@ -142,7 +143,7 @@ impl<KP, V> GenericClientBuilder<KP, V> {
 pub struct GenericClient<T, V> {
     token_validator: V,
     key_provider: T,
-    check_expiration: bool,
+    mocked_timestamp: Option<u64>,
 }
 
 impl FirebaseClient {
@@ -158,62 +159,53 @@ impl FirebaseClient {
 
 #[cfg(feature = "blocking")]
 impl<KP: KeyProvider, V: Validator> GenericBlockingClient<KP, V> {
-    pub fn verify_token_with_payload<P>(
-        &self,
-        token_string: &str,
-    ) -> Result<Token<P, V::RequiredClaims>, Error>
+    pub fn verify_token_with_payload<P>(&self, token_string: &str) -> VerifyTokenResult<V, P>
     where
         for<'a> P: Deserialize<'a>,
     {
         let unverified_token = UnverifiedToken::<P, _>::validate(
             token_string,
-            self.check_expiration,
             &self.token_validator,
+            self.mocked_timestamp.map_or_else(current_timestamp, Ok)?,
         )?;
         println!("validated token");
-        unverified_token.verify(&self.key_provider)
+        unverified_token.verify::<KP, V>(&self.key_provider)
     }
 
-    pub fn verify_token(&self, token_string: &str) -> Result<Token<(), V::RequiredClaims>, Error> {
+    pub fn verify_token(&self, token_string: &str) -> VerifyTokenResult<V, ()> {
         self.verify_token_with_payload::<()>(token_string)
     }
 
-    pub fn verify_id_token(
-        &self,
-        token_string: &str,
-    ) -> Result<Token<V::IdPayload, V::RequiredClaims>, Error> {
+    pub fn verify_id_token(&self, token_string: &str) -> VerifyTokenResult<V, V::IdPayload> {
         self.verify_token_with_payload(token_string)
     }
 }
 
+type VerifyTokenResult<V, P> =
+    Result<Token<P, <V as Validator>::RequiredClaims>, Error<<V as Validator>::ClaimsError>>;
+
 #[cfg(feature = "async")]
 impl<KP: AsyncKeyProvider, V: Validator> GenericTokioClient<KP, V> {
-    pub async fn verify_token_with_payload<P>(
-        &self,
-        token_string: &str,
-    ) -> Result<Token<P, V::RequiredClaims>, Error>
+    pub async fn verify_token_with_payload<P>(&self, token_string: &str) -> VerifyTokenResult<V, P>
     where
         for<'a> P: Deserialize<'a>,
     {
         let unverified_token = UnverifiedToken::<P, V::RequiredClaims>::validate(
             token_string,
-            self.check_expiration,
             &self.token_validator,
+            self.mocked_timestamp
+                .map_or_else(current_timestamp, Ok)?,
         )?;
-        unverified_token.verify_async(&self.key_provider).await
+        unverified_token
+            .verify_async::<KP, V>(&self.key_provider)
+            .await
     }
 
-    pub async fn verify_token(
-        &self,
-        token_string: &str,
-    ) -> Result<Token<(), V::RequiredClaims>, Error> {
+    pub async fn verify_token(&self, token_string: &str) -> VerifyTokenResult<V, ()> {
         self.verify_token_with_payload::<()>(token_string).await
     }
 
-    pub async fn verify_id_token(
-        &self,
-        token_string: &str,
-    ) -> Result<Token<V::IdPayload, V::RequiredClaims>, Error> {
+    pub async fn verify_id_token(&self, token_string: &str) -> VerifyTokenResult<V, V::IdPayload> {
         self.verify_token_with_payload(token_string).await
     }
 }
