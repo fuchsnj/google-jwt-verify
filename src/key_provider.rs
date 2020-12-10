@@ -74,7 +74,7 @@ impl Validator for GoogleSigninValidator {
 
 impl TokenClaimsError for GoogleSigninClaimsError {}
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 pub struct FirebaseAuthenticationKeyProvider {
     cache: Option<(JsonWebKeySet, Instant)>,
 }
@@ -87,6 +87,7 @@ impl FirebaseValidator {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct FirebaseValidator {
     project_id: String,
 }
