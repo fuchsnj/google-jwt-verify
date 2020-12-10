@@ -21,6 +21,11 @@ pub use crate::token::{
     GoogleSigninIdPayload as IdPayload, GoogleSigninRequiredClaims as RequiredClaims, Token,
 };
 pub use error::Error;
+use token::GoogleSigninClaimsError;
+use key_provider::FirebaseClaimsError;
+
+pub type FirebaseError = Error<FirebaseClaimsError>;
+pub type GoogleSigninError = Error<GoogleSigninClaimsError>;
 
 fn base64_decode(input: &str) -> Result<Vec<u8>, base64::DecodeError> {
     base64::decode_config(&input, base64::URL_SAFE)
