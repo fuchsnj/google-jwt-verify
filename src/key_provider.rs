@@ -104,7 +104,7 @@ impl Validator for FirebaseValidator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum FirebaseClaimsError {
     InvalidAudience,
     InvalidIssuer,

@@ -3,6 +3,7 @@ use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
 use crate::{
+    Error, key_provider::FirebaseClaimsError, error::TokenValidationError,
     jwk::{JsonWebKey, JsonWebKeySet},
     Client,
 };
@@ -35,6 +36,12 @@ const JWKS: &str = r#"{
 
 const PROJECT_ID: &str = "jwt-verify";
 
+const BEFORE_AUTHENTICATING: u64 = 1607561000;
+
+const BETWEEN_AUTHENTICATING_AND_EXPIRATION: u64 = 1607562079;
+
+const AFTER_EXPIRATION: u64 = 1607566000;
+
 #[derive(Default)]
 struct TestProvider;
 
@@ -60,10 +67,36 @@ impl AsyncKeyProvider for TestProvider {
 fn valid_firebase_token() {
     let client = Client::firebase_builder(PROJECT_ID)
         .custom_key_provider(TestProvider)
-        .unsafe_mock_timestamp(1607562079)
+        .unsafe_mock_timestamp(BETWEEN_AUTHENTICATING_AND_EXPIRATION)
         .build();
     let id_token = client.verify_id_token(TOKEN).unwrap();
     assert_eq!(id_token.get_claims().get_subject(), "test");
+}
+
+#[cfg(feature = "blocking")]
+#[test]
+fn expired_firebase_token() {
+    let client = Client::firebase_builder(PROJECT_ID)
+        .custom_key_provider(TestProvider)
+        .unsafe_mock_timestamp(AFTER_EXPIRATION)
+        .build();
+      assert_eq!(
+        client.verify_id_token(TOKEN).unwrap_err(),
+        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::Expired))
+      );
+}
+
+#[cfg(feature = "blocking")]
+#[test]
+fn firebase_token_authenticated_in_the_future() {
+    let client = Client::firebase_builder(PROJECT_ID)
+        .custom_key_provider(TestProvider)
+        .unsafe_mock_timestamp(BEFORE_AUTHENTICATING)
+        .build();
+      assert_eq!(
+        client.verify_id_token(TOKEN).unwrap_err(),
+        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::AuthenticatedInTheFuture))
+      );
 }
 
 #[cfg(feature = "async")]
@@ -71,9 +104,38 @@ fn valid_firebase_token() {
 async fn valid_firebase_token_async() {
     let client = Client::firebase_builder(PROJECT_ID)
         .custom_key_provider(TestProvider)
-        .unsafe_mock_timestamp(1607562079)
+        .unsafe_mock_timestamp(BETWEEN_AUTHENTICATING_AND_EXPIRATION)
         .tokio()
         .build();
     let id_token = client.verify_id_token(TOKEN).await.unwrap();
     assert_eq!(id_token.get_claims().get_subject(), "test");
+}
+
+#[cfg(feature = "async")]
+#[tokio::test]
+async fn expired_firebase_token_async() {
+    let client = Client::firebase_builder(PROJECT_ID)
+        .custom_key_provider(TestProvider)
+        .unsafe_mock_timestamp(AFTER_EXPIRATION)
+        .tokio()
+        .build();
+      assert_eq!(
+        client.verify_id_token(TOKEN).await.unwrap_err(),
+        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::Expired))
+      );
+}
+
+
+#[cfg(feature = "async")]
+#[tokio::test]
+async fn firebase_token_authenticated_in_the_future_async() {
+    let client = Client::firebase_builder(PROJECT_ID)
+        .custom_key_provider(TestProvider)
+        .unsafe_mock_timestamp(BEFORE_AUTHENTICATING)
+        .tokio()
+        .build();
+      assert_eq!(
+        client.verify_id_token(TOKEN).await.unwrap_err(),
+        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::AuthenticatedInTheFuture))
+      );
 }
