@@ -21,8 +21,8 @@ pub use crate::token::{
     GoogleSigninIdPayload as IdPayload, GoogleSigninRequiredClaims as RequiredClaims, Token,
 };
 pub use error::Error;
-use token::GoogleSigninClaimsError;
 use key_provider::FirebaseClaimsError;
+use token::GoogleSigninClaimsError;
 
 pub type FirebaseError = Error<FirebaseClaimsError>;
 pub type GoogleSigninError = Error<GoogleSigninClaimsError>;
