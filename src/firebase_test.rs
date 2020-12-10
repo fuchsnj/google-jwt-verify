@@ -3,9 +3,10 @@ use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
 use crate::{
-    Error, key_provider::FirebaseClaimsError, error::TokenValidationError,
+    error::TokenValidationError,
     jwk::{JsonWebKey, JsonWebKeySet},
-    Client,
+    key_provider::FirebaseClaimsError,
+    Client, Error,
 };
 #[cfg(feature = "async")]
 use async_trait::async_trait;
@@ -80,10 +81,10 @@ fn expired_firebase_token() {
         .custom_key_provider(TestProvider)
         .unsafe_mock_timestamp(AFTER_EXPIRATION)
         .build();
-      assert_eq!(
+    assert_eq!(
         client.verify_id_token(TOKEN).unwrap_err(),
         Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::Expired))
-      );
+    );
 }
 
 #[cfg(feature = "blocking")]
@@ -93,10 +94,12 @@ fn firebase_token_authenticated_in_the_future() {
         .custom_key_provider(TestProvider)
         .unsafe_mock_timestamp(BEFORE_AUTHENTICATING)
         .build();
-      assert_eq!(
+    assert_eq!(
         client.verify_id_token(TOKEN).unwrap_err(),
-        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::AuthenticatedInTheFuture))
-      );
+        Error::InvalidToken(TokenValidationError::Claims(
+            FirebaseClaimsError::AuthenticatedInTheFuture
+        ))
+    );
 }
 
 #[cfg(feature = "async")]
@@ -119,12 +122,11 @@ async fn expired_firebase_token_async() {
         .unsafe_mock_timestamp(AFTER_EXPIRATION)
         .tokio()
         .build();
-      assert_eq!(
+    assert_eq!(
         client.verify_id_token(TOKEN).await.unwrap_err(),
         Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::Expired))
-      );
+    );
 }
-
 
 #[cfg(feature = "async")]
 #[tokio::test]
@@ -134,8 +136,10 @@ async fn firebase_token_authenticated_in_the_future_async() {
         .unsafe_mock_timestamp(BEFORE_AUTHENTICATING)
         .tokio()
         .build();
-      assert_eq!(
+    assert_eq!(
         client.verify_id_token(TOKEN).await.unwrap_err(),
-        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::AuthenticatedInTheFuture))
-      );
+        Error::InvalidToken(TokenValidationError::Claims(
+            FirebaseClaimsError::AuthenticatedInTheFuture
+        ))
+    );
 }
