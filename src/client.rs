@@ -147,6 +147,7 @@ impl<KP, V> GenericClientBuilder<KP, V> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct GenericClient<T, V> {
     token_validator: V,
     key_provider: T,
