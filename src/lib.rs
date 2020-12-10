@@ -14,7 +14,9 @@ mod token;
 mod unverified_token;
 mod validator;
 
-pub use crate::client::Client;
+pub use crate::client::{Client, FirebaseClient};
+#[cfg(feature = "async")]
+pub use crate::client::{FirebaseTokioClient, GoogleSigninTokioClient};
 pub use crate::token::{
     GoogleSigninIdPayload as IdPayload, GoogleSigninRequiredClaims as RequiredClaims, Token,
 };

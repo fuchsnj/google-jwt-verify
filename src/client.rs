@@ -32,9 +32,13 @@ pub type FirebaseClient =
 type FirebaseClientBuilder =
     GenericBlockingClientBuilder<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
 
-#[cfg(all(test, feature = "async"))]
+#[cfg(feature = "async")]
 pub type GoogleSigninTokioClient =
     GenericTokioClient<GoogleSigninKeyProvider, GoogleSigninValidator>;
+
+#[cfg(feature = "async")]
+pub type FirebaseTokioClient =
+    GenericTokioClient<FirebaseAuthenticationKeyProvider, FirebaseValidator>;
 
 #[cfg(feature = "async")]
 type GenericTokioClient<KP, V> = GenericClient<Arc<tokio::sync::Mutex<KP>>, V>;
