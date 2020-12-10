@@ -18,7 +18,7 @@ impl JsonWebKeySet {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct JsonWebKey {
     #[serde(rename = "alg")]
     algorithm: Algorithm,
