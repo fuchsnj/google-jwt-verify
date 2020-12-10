@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use super::*;
+#[cfg(feature = "async")]
+use crate::client::GoogleSigninTokioClient;
 use crate::error::Error;
 use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
@@ -8,10 +10,7 @@ use crate::jwk::JsonWebKeySet;
 use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
-#[cfg(feature = "async")]
-use crate::{
-    client::GoogleSigninTokioClient, error::TokenValidationError, token::GoogleSigninClaimsError,
-};
+use crate::{error::TokenValidationError, token::GoogleSigninClaimsError};
 #[cfg(feature = "async")]
 use futures::future::join_all;
 

@@ -1,6 +1,6 @@
-use std::sync::Arc;
 #[cfg(feature = "blocking")]
 use std::sync::Mutex;
+use std::{fmt::Debug, sync::Arc};
 
 use serde::Deserialize;
 
@@ -14,6 +14,7 @@ use crate::{
     error::{JsonDeserializationError, TokenValidationError},
 };
 
+#[derive(Debug)]
 pub struct UnverifiedToken<P, C> {
     header: Header,
     signed_body: String,
@@ -25,7 +26,7 @@ pub struct UnverifiedToken<P, C> {
 impl<P, C> UnverifiedToken<P, C>
 where
     for<'a> P: Deserialize<'a>,
-    for<'a> C: Deserialize<'a> + Clone,
+    for<'a> C: Deserialize<'a> + Clone + Debug,
 {
     pub fn validate<V>(
         token_string: &str,
@@ -72,7 +73,7 @@ where
 
 impl<P, C> UnverifiedToken<P, C>
 where
-    C: Clone + for<'a> Deserialize<'a>,
+    C: Clone + for<'a> Deserialize<'a> + Debug,
 {
     #[cfg(feature = "blocking")]
     pub fn verify<KP: KeyProvider, V: Validator<RequiredClaims = C>>(

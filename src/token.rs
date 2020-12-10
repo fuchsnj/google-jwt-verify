@@ -137,9 +137,9 @@ pub enum GoogleSigninClaimsError {
     IssuedAfterExpiry,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct FirebaseIdPayload {
-    name: String,
+    name: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]

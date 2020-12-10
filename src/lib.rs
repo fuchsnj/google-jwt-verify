@@ -1,4 +1,6 @@
 #[cfg(test)]
+mod firebase_test;
+#[cfg(test)]
 mod test;
 
 mod algorithm;

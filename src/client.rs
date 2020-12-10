@@ -13,7 +13,10 @@ use crate::{
 };
 use serde::Deserialize;
 
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 
 pub type Client = GenericBlockingClient<GoogleSigninKeyProvider, GoogleSigninValidator>;
 
@@ -161,14 +164,13 @@ impl FirebaseClient {
 impl<KP: KeyProvider, V: Validator> GenericBlockingClient<KP, V> {
     pub fn verify_token_with_payload<P>(&self, token_string: &str) -> VerifyTokenResult<V, P>
     where
-        for<'a> P: Deserialize<'a>,
+        for<'a> P: Deserialize<'a> + Debug,
     {
         let unverified_token = UnverifiedToken::<P, _>::validate(
             token_string,
             &self.token_validator,
             self.mocked_timestamp.map_or_else(current_timestamp, Ok)?,
         )?;
-        println!("validated token");
         unverified_token.verify::<KP, V>(&self.key_provider)
     }
 
@@ -188,13 +190,12 @@ type VerifyTokenResult<V, P> =
 impl<KP: AsyncKeyProvider, V: Validator> GenericTokioClient<KP, V> {
     pub async fn verify_token_with_payload<P>(&self, token_string: &str) -> VerifyTokenResult<V, P>
     where
-        for<'a> P: Deserialize<'a>,
+        for<'a> P: Deserialize<'a> + Debug,
     {
         let unverified_token = UnverifiedToken::<P, V::RequiredClaims>::validate(
             token_string,
             &self.token_validator,
-            self.mocked_timestamp
-                .map_or_else(current_timestamp, Ok)?,
+            self.mocked_timestamp.map_or_else(current_timestamp, Ok)?,
         )?;
         unverified_token
             .verify_async::<KP, V>(&self.key_provider)
