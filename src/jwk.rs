@@ -7,7 +7,7 @@ use openssl::rsa::Rsa;
 use openssl::sign::Verifier;
 use serde_derive::Deserialize;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct JsonWebKeySet {
     keys: Vec<JsonWebKey>,
 }
