@@ -140,6 +140,28 @@ pub enum GoogleSigninClaimsError {
 #[derive(Deserialize, Clone, Debug)]
 pub struct FirebaseIdPayload {
     name: Option<String>,
+    email: Option<String>,
+    email_verified: Option<bool>,
+    phone_number: Option<String>,
+    picture: Option<String>
+}
+
+impl FirebaseIdPayload {
+    pub fn get_name(&self) -> &Option<String> {
+        &self.name
+    }
+    pub fn get_email(&self) -> &Option<String>{
+        &self.email
+    }
+    pub fn is_email_verified(&self) -> Option<bool> {
+        self.email_verified
+    }
+    pub fn get_phone_number(&self) -> &Option<String> {
+        &self.phone_number
+    }
+    pub fn get_picture(&self) -> &Option<String> {
+        &self.picture
+    }
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
