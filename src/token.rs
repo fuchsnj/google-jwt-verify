@@ -21,6 +21,9 @@ impl<P, C: Clone> Token<P, C> {
     pub fn get_payload(&self) -> &P {
         &self.payload
     }
+    pub fn move_payload(self) -> P {
+        self.payload
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
