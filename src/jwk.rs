@@ -36,21 +36,36 @@ impl JsonWebKey {
     pub fn verify(&self, body: &[u8], signature: &[u8]) -> Result<(), VerificationError> {
         match self.algorithm {
             Algorithm::RS256 => {
-                let n = BigNum::from_slice(
-                    &base64_decode(&self.n).map_err(|e| VerificationError::Modulus(e.into()))?,
-                )
-                .map_err(|e| VerificationError::Modulus(e.into()))?;
-                let e = BigNum::from_slice(
-                    &base64_decode(&self.e).map_err(|e| VerificationError::Exponent(e.into()))?,
-                )
-                .map_err(|e| VerificationError::Exponent(e.into()))?;
+                let n = BigNum::from_slice(&base64_decode(&self.n).map_err(|e| {
+                    VerificationError::Modulus {
+                        n: self.n.clone(),
+                        source: e.into(),
+                    }
+                })?)
+                .map_err(|e| VerificationError::Modulus {
+                    source: e.into(),
+                    n: self.n.clone(),
+                })?;
+                let e = BigNum::from_slice(&base64_decode(&self.e).map_err(|e| {
+                    VerificationError::Exponent {
+                        source: e.into(),
+                        e: self.e.clone(),
+                    }
+                })?)
+                .map_err(|e| VerificationError::Exponent {
+                    source: e.into(),
+                    e: self.e.clone(),
+                })?;
                 let key = PKey::from_rsa(Rsa::from_public_components(n, e)?)?;
                 let mut verifier = Verifier::new(MessageDigest::sha256(), &key)?;
                 verifier.update(body)?;
                 verifier.verify(signature)?;
                 Ok(())
             }
-            _ => Err(VerificationError::UnsupportedAlgorithm(self.algorithm)),
+            _ => Err(VerificationError::UnsupportedAlgorithm {
+                found: self.algorithm,
+                expected: Algorithm::RS256,
+            }),
         }
     }
 }

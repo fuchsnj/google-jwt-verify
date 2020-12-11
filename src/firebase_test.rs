@@ -83,7 +83,10 @@ fn expired_firebase_token() {
         .build();
     assert_eq!(
         client.verify_id_token(TOKEN).unwrap_err(),
-        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::Expired))
+        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::Expired {
+            now: AFTER_EXPIRATION,
+            exp: 1607565474
+        }))
     );
 }
 
@@ -97,7 +100,10 @@ fn firebase_token_authenticated_in_the_future() {
     assert_eq!(
         client.verify_id_token(TOKEN).unwrap_err(),
         Error::InvalidToken(TokenValidationError::Claims(
-            FirebaseClaimsError::AuthenticatedInTheFuture
+            FirebaseClaimsError::AuthenticatedInTheFuture {
+                auth_time: 1607561874,
+                now: BEFORE_AUTHENTICATING
+            }
         ))
     );
 }
@@ -124,7 +130,10 @@ async fn expired_firebase_token_async() {
         .build();
     assert_eq!(
         client.verify_id_token(TOKEN).await.unwrap_err(),
-        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::Expired))
+        Error::InvalidToken(TokenValidationError::Claims(FirebaseClaimsError::Expired {
+            now: AFTER_EXPIRATION,
+            exp: 1607565474
+        }))
     );
 }
 
@@ -139,7 +148,10 @@ async fn firebase_token_authenticated_in_the_future_async() {
     assert_eq!(
         client.verify_id_token(TOKEN).await.unwrap_err(),
         Error::InvalidToken(TokenValidationError::Claims(
-            FirebaseClaimsError::AuthenticatedInTheFuture
+            FirebaseClaimsError::AuthenticatedInTheFuture {
+                auth_time: 1607561874,
+                now: BEFORE_AUTHENTICATING
+            }
         ))
     );
 }

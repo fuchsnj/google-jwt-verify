@@ -100,7 +100,11 @@ where
             Ok(None) => return Err(Error::KeyDoesNotExist),
             Err(_) => return Err(Error::RetrieveKeyFailure),
         };
-        key.verify(self.signed_body.as_bytes(), &self.signature)?;
+        key.verify(self.signed_body.as_bytes(), &self.signature)
+            .map_err(|e| Error::Verification {
+                kid: key.get_id(),
+                source: e.into(),
+            })?;
         Ok(Token::new(self.claims, self.json_payload))
     }
 }

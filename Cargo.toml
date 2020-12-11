@@ -25,6 +25,7 @@ serde_derive = "1.0.104"
 reqwest = {version="0.10.4"}
 headers = "0.3.1"
 tokio = {version = "0.2", optional = true}
+thiserror = "1"
 
 [dev-dependencies]
 tokio = {version = "0.2", features = ["macros"]}

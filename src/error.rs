@@ -1,23 +1,32 @@
-use std::time::SystemTimeError;
+use std::{error::Error as StdError, fmt::Debug, time::SystemTimeError};
 
 use crate::algorithm::Algorithm;
 use base64::DecodeError;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum Error<TCE: TokenClaimsError> {
-    InvalidToken(TokenValidationError<TCE>),
-    Verification(VerificationError),
-    /// If unable to get the current system time
-    CurrentTimestamp(SystemTimeError),
+    #[error(transparent)]
+    InvalidToken(#[from] TokenValidationError<TCE>),
+    #[error("problem verifying JWT signature using provided JWK with kid={kid}: {source}")]
+    Verification {
+        source: VerificationError,
+        kid: String,
+    },
+    #[error("failed to determine the current timestamp {0}")]
+    CurrentTimestamp(#[from] SystemTimeError),
+    #[error("problem with getting public key of token's signature")]
     RetrieveKeyFailure,
-    /// Key with request ID doesn't exist, may have been rotated
+    #[error(
+        "key provider did not provide any JSON Web Keys with the same Key ID as the token's header"
+    )]
     KeyDoesNotExist,
 }
 
 impl<TCE: TokenClaimsError + PartialEq> PartialEq for Error<TCE> {
     fn eq(&self, other: &Self) -> bool {
         matches!((self, other), (Error::InvalidToken(tve1), Error::InvalidToken(tve2)) if tve1 == tve2)
-            || matches!((self, other), (Error::Verification(ve1), Error::Verification(ve2)) if ve1 == ve2)
+            || matches!((self, other), (Error::Verification{source: ve1, kid: kid1}, Error::Verification{source: ve2, kid: kid2}) if ve1 == ve2 && kid1 == kid2)
             || matches!((self, other), (Error::CurrentTimestamp(ste1), Error::CurrentTimestamp(ste2)) if ste1.duration() == ste2.duration())
             || matches!(
                 (self, other),
@@ -27,44 +36,29 @@ impl<TCE: TokenClaimsError + PartialEq> PartialEq for Error<TCE> {
     }
 }
 
-impl<TCE: TokenClaimsError> From<VerificationError> for Error<TCE> {
-    fn from(ve: VerificationError) -> Self {
-        Self::Verification(ve)
-    }
-}
-
-impl<TCE: TokenClaimsError> From<TokenValidationError<TCE>> for Error<TCE> {
-    fn from(tve: TokenValidationError<TCE>) -> Self {
-        Self::InvalidToken(tve)
-    }
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum TokenValidationError<TCE: TokenClaimsError> {
-    /// Token should not be authorized by client given the claims
-    Claims(TCE),
-    /// If unable to get the serialized header
+    #[error(transparent)]
+    Claims(#[from] TCE),
+    #[error("JWT header: {0}")]
     Header(TokenSegmentError),
-    /// If unable to get the serialized payload
+    #[error("JWT payload: {0}")]
     Payload(TokenSegmentError),
-    /// If unable to get the serialized signature
+    #[error("JWT signature: {0}")]
     Signature(TokenSegmentError),
-    /// If a serialized token segment does not match expected JSON schema
-    Json(JsonDeserializationError),
+    #[error(transparent)]
+    Json(#[from] JsonDeserializationError),
 }
 
-impl<TCE: TokenClaimsError> From<TCE> for TokenValidationError<TCE> {
-    fn from(tce: TCE) -> Self {
-        Self::Claims(tce)
-    }
-}
+pub trait TokenClaimsError: Debug + StdError + 'static {}
 
-pub trait TokenClaimsError {}
-
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum JsonDeserializationError {
+    #[error("JWT header: {0}")]
     Header(serde_json::Error),
+    #[error("JWT claims: {0}")]
     Claims(serde_json::Error),
+    #[error("JWT payload: {0}")]
     Payload(serde_json::Error),
 }
 
@@ -78,68 +72,55 @@ impl PartialEq for JsonDeserializationError {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum TokenSegmentError {
-    Decoding(DecodeError),
+    #[error(transparent)]
+    Decoding(#[from] DecodeError),
+    #[error("segment is not present")]
     Absent,
 }
 
-impl<TCE: TokenClaimsError> From<SystemTimeError> for Error<TCE> {
-    fn from(ste: SystemTimeError) -> Self {
-        Self::CurrentTimestamp(ste)
-    }
-}
-
-impl From<DecodeError> for TokenSegmentError {
-    fn from(de: DecodeError) -> Self {
-        Self::Decoding(de)
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum VerificationError {
-    UnsupportedAlgorithm(Algorithm),
-    Modulus(PublicComponentError),
-    Exponent(PublicComponentError),
-    Cryptography(openssl::error::ErrorStack),
+    #[error("the algorithm, {found:?}, is not supported. Only {expected:?} is supported")]
+    UnsupportedAlgorithm {
+        found: Algorithm,
+        expected: Algorithm,
+    },
+    #[error("problem reading RSA modulus, n = {n}: {source}")]
+    Modulus {
+        source: PublicComponentError,
+        n: String,
+    },
+    #[error("problem reading RSA public exponent, e = {e}: {source}")]
+    Exponent {
+        source: PublicComponentError,
+        e: String,
+    },
+    #[error(transparent)]
+    Cryptography(#[from] openssl::error::ErrorStack),
 }
 
 impl PartialEq for VerificationError {
     fn eq(&self, other: &Self) -> bool {
-        matches!((self, other), (VerificationError::Modulus(pce1), VerificationError::Modulus(pce2)) |
-            (VerificationError::Exponent(pce1), VerificationError::Exponent(pce2)) if pce1 == pce2)
+        matches!((self, other), (VerificationError::Modulus{source: pce1, n: c1}, VerificationError::Modulus{source: pce2, n: c2}) |
+            (VerificationError::Exponent{source: pce1, e: c1}, VerificationError::Exponent{source: pce2, e: c2}) if pce1 == pce2 && c1 == c2)
             || matches!((self, other), (VerificationError::Cryptography(e1), VerificationError::Cryptography(e2)) if e1.to_string() == e2.to_string())
-            || matches!((self, other), (VerificationError::UnsupportedAlgorithm(a1), VerificationError::UnsupportedAlgorithm(a2)) if a1 == a2)
+            || matches!((self, other), (VerificationError::UnsupportedAlgorithm{found: a1, expected: e1}, VerificationError::UnsupportedAlgorithm{found: a2, expected: e2}) if a1 == a2 && e1 == e2)
     }
 }
 
-impl From<openssl::error::ErrorStack> for VerificationError {
-    fn from(e: openssl::error::ErrorStack) -> Self {
-        Self::Cryptography(e)
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum PublicComponentError {
-    BigNumParse(openssl::error::ErrorStack),
-    Decoding(DecodeError),
+    #[error(transparent)]
+    BigNumParse(#[from] openssl::error::ErrorStack),
+    #[error(transparent)]
+    Decoding(#[from] DecodeError),
 }
 
 impl PartialEq for PublicComponentError {
     fn eq(&self, other: &Self) -> bool {
         matches!((self, other), (PublicComponentError::Decoding(de1), PublicComponentError::Decoding(de2)) if de1 == de2)
             || matches!((self, other), (PublicComponentError::BigNumParse(e1), PublicComponentError::BigNumParse(e2)) if e1.to_string() == e2.to_string())
-    }
-}
-
-impl From<openssl::error::ErrorStack> for PublicComponentError {
-    fn from(e: openssl::error::ErrorStack) -> Self {
-        Self::BigNumParse(e)
-    }
-}
-
-impl From<DecodeError> for PublicComponentError {
-    fn from(de: DecodeError) -> Self {
-        Self::Decoding(de)
     }
 }

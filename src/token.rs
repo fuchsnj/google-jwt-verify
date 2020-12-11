@@ -1,5 +1,6 @@
 use crate::key_provider::FirebaseClaimsError;
 use serde_derive::Deserialize;
+use thiserror::Error;
 
 #[derive(Debug, PartialEq)]
 pub struct Token<P, C> {
@@ -49,16 +50,32 @@ impl FirebaseRequiredClaims {
         project_id: &str,
         current_timestamp: u64,
     ) -> Result<(), FirebaseClaimsError> {
+        let expected = format!("https://securetoken.google.com/{}", project_id);
         if self.audience != project_id {
-            Err(FirebaseClaimsError::InvalidAudience)
-        } else if self.issuer != format!("https://securetoken.google.com/{}", project_id) {
-            Err(FirebaseClaimsError::InvalidIssuer)
+            Err(FirebaseClaimsError::InvalidAudience {
+                expected: project_id.into(),
+                found: self.audience.clone(),
+            })
+        } else if self.issuer != expected {
+            Err(FirebaseClaimsError::InvalidIssuer {
+                found: self.issuer.clone(),
+                expected,
+            })
         } else if current_timestamp < self.auth_time {
-            Err(FirebaseClaimsError::AuthenticatedInTheFuture)
+            Err(FirebaseClaimsError::AuthenticatedInTheFuture {
+                now: current_timestamp,
+                auth_time: self.auth_time,
+            })
         } else if current_timestamp < self.issued_at {
-            Err(FirebaseClaimsError::IssuedInTheFuture)
+            Err(FirebaseClaimsError::IssuedInTheFuture {
+                iat: self.issued_at,
+                now: current_timestamp,
+            })
         } else if self.expires_at < current_timestamp {
-            Err(FirebaseClaimsError::Expired)
+            Err(FirebaseClaimsError::Expired {
+                exp: self.expires_at,
+                now: current_timestamp,
+            })
         } else {
             Ok(())
         }
@@ -95,16 +112,27 @@ impl GoogleSigninRequiredClaims {
         client_id: &str,
         current_timestamp: u64,
     ) -> Result<(), GoogleSigninClaimsError> {
+        let allowed = ["https://accounts.google.com", "accounts.google.com"];
         if self.audience != client_id {
-            Err(GoogleSigninClaimsError::InvalidAudience)
-        } else if !["https://accounts.google.com", "accounts.google.com"]
-            .contains(&self.issuer.as_str())
-        {
-            Err(GoogleSigninClaimsError::InvalidIssuer)
+            Err(GoogleSigninClaimsError::InvalidAudience {
+                found: self.audience.clone(),
+                expected: client_id.into(),
+            })
+        } else if !allowed.contains(&self.issuer.as_str()) {
+            Err(GoogleSigninClaimsError::InvalidIssuer {
+                found: self.issuer.clone(),
+                allowed,
+            })
         } else if self.expires_at < current_timestamp {
-            Err(GoogleSigninClaimsError::Expired)
+            Err(GoogleSigninClaimsError::Expired {
+                now: current_timestamp,
+                exp: self.expires_at,
+            })
         } else if self.expires_at < self.issued_at {
-            Err(GoogleSigninClaimsError::IssuedAfterExpiry)
+            Err(GoogleSigninClaimsError::IssuedAfterExpiry {
+                iss: self.issued_at,
+                exp: self.expires_at,
+            })
         } else {
             Ok(())
         }
@@ -129,12 +157,19 @@ impl GoogleSigninRequiredClaims {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum GoogleSigninClaimsError {
-    InvalidAudience,
-    InvalidIssuer,
-    Expired,
-    IssuedAfterExpiry,
+    #[error("JWT audience claim ({found}) is not equal to the client ID (expected)")]
+    InvalidAudience { found: String, expected: String },
+    #[error("JWT issuer ({found}) is neither {} nor {}", .allowed[0], .allowed[1])]
+    InvalidIssuer {
+        found: String,
+        allowed: [&'static str; 2],
+    },
+    #[error("JWT has expired. Current timestamp={now}. Expiration timestamp={exp}")]
+    Expired { now: u64, exp: u64 },
+    #[error("JWT was issued (timestamp={iss}) after expiration (timestamp={exp})")]
+    IssuedAfterExpiry { iss: u64, exp: u64 },
 }
 
 #[derive(Deserialize, Clone, Debug)]

@@ -40,6 +40,7 @@ const JWKS: &'static str = r#"{
 }"#;
 const AUDIENCE: &'static str =
     "37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com";
+const AFTER_EXPIRATION: u64 = 2000000000;
 
 #[derive(Default)]
 struct TestKeyProvider {
@@ -79,14 +80,17 @@ pub fn decode_keys() {
 #[cfg(feature = "blocking")]
 #[test]
 pub fn test_client() {
-    let client =
-        Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
-            .custom_key_provider(TestKeyProvider::default())
-            .build();
+    let client = Client::builder(AUDIENCE)
+        .custom_key_provider(TestKeyProvider::default())
+        .unsafe_mock_timestamp(AFTER_EXPIRATION)
+        .build();
     assert_eq!(
         client.verify_token(TOKEN).map(|_| ()),
         Err(Error::InvalidToken(TokenValidationError::Claims(
-            GoogleSigninClaimsError::Expired
+            GoogleSigninClaimsError::Expired {
+                now: AFTER_EXPIRATION,
+                exp: 1526492533
+            }
         )))
     );
 }
@@ -101,7 +105,10 @@ pub fn test_client_invalid_client_id() {
     assert_eq!(
         result,
         Err(Error::InvalidToken(TokenValidationError::Claims(
-            GoogleSigninClaimsError::InvalidAudience
+            GoogleSigninClaimsError::InvalidAudience {
+                expected: "invalid client id".into(),
+                found: AUDIENCE.into()
+            }
         )))
     )
 }
@@ -137,15 +144,18 @@ async fn decode_keys_async() {
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn test_client_async() {
-    let client =
-        Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
-            .custom_key_provider(TestKeyProvider::default())
-            .tokio()
-            .build();
+    let client = Client::builder(AUDIENCE)
+        .custom_key_provider(TestKeyProvider::default())
+        .tokio()
+        .unsafe_mock_timestamp(AFTER_EXPIRATION)
+        .build();
     assert_eq!(
         client.verify_token(TOKEN).await.map(|_| ()),
         Err(Error::InvalidToken(TokenValidationError::Claims(
-            GoogleSigninClaimsError::Expired
+            GoogleSigninClaimsError::Expired {
+                now: AFTER_EXPIRATION,
+                exp: 1526492533
+            }
         )))
     );
 }
@@ -161,7 +171,10 @@ async fn test_client_invalid_client_id_async() {
     assert_eq!(
         result,
         Err(Error::InvalidToken(TokenValidationError::Claims(
-            GoogleSigninClaimsError::InvalidAudience
+            GoogleSigninClaimsError::InvalidAudience {
+                expected: "invalid client id".into(),
+                found: AUDIENCE.into()
+            }
         )))
     )
 }

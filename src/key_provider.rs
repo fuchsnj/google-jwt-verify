@@ -12,6 +12,7 @@ use async_trait::async_trait;
 use headers::{Header, HeaderMap};
 use reqwest::header::CACHE_CONTROL;
 use std::time::Instant;
+use thiserror::Error;
 
 #[cfg(feature = "blocking")]
 pub trait KeyProvider {
@@ -105,13 +106,18 @@ impl Validator for FirebaseValidator {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum FirebaseClaimsError {
-    InvalidAudience,
-    InvalidIssuer,
-    Expired,
-    IssuedInTheFuture,
-    AuthenticatedInTheFuture,
+    #[error("JWT audience claim ({found}) is not equal to the project ID (expected)")]
+    InvalidAudience { found: String, expected: String },
+    #[error("JWT issuer ({found}) is not equal to {expected}")]
+    InvalidIssuer { found: String, expected: String },
+    #[error("JWT has expired. Current timestamp={now}. Expiration timestamp={exp}")]
+    Expired { now: u64, exp: u64 },
+    #[error("JWT was issued in the future (timestamp={iat}). Current timestamp={now}")]
+    IssuedInTheFuture { iat: u64, now: u64 },
+    #[error("Firebase user was authenticated in the future (timestamp={auth_time}). Current timestamp={now}")]
+    AuthenticatedInTheFuture { auth_time: u64, now: u64 },
 }
 
 impl TokenClaimsError for FirebaseClaimsError {}
