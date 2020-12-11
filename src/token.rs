@@ -144,6 +144,7 @@ pub struct FirebaseIdPayload {
     email_verified: Option<bool>,
     phone_number: Option<String>,
     picture: Option<String>,
+    sub: String,
 }
 
 impl FirebaseIdPayload {
@@ -161,6 +162,9 @@ impl FirebaseIdPayload {
     }
     pub fn get_picture(&self) -> &Option<String> {
         &self.picture
+    }
+    pub fn get_user_id(&self) -> &String {
+        &self.sub
     }
 }
 
