@@ -3,6 +3,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use tokio::sync::Mutex as AsyncMutex;
+
 use serde::Deserialize;
 
 #[cfg(feature = "async")]
@@ -80,6 +82,16 @@ impl<P> UnverifiedToken<P> {
         let key_id = self.header.key_id.clone();
         self.verify_with_key(key_provider.lock().unwrap().get_key_async(&key_id).await)
     }
+
+    #[cfg(feature = "async")]
+    pub async fn verify_async_mutex<KP: AsyncKeyProvider>(
+        self,
+        key_provider: &Arc<AsyncMutex<KP>>,
+    ) -> Result<Token<P>, Error> {
+        let key_id = self.header.key_id.clone();
+        self.verify_with_key(key_provider.lock().await.get_key_async(&key_id).await)
+    }
+
     fn verify_with_key(self, key: Result<Option<JsonWebKey>, ()>) -> Result<Token<P>, Error> {
         let key = match key {
             Ok(Some(key)) => key,

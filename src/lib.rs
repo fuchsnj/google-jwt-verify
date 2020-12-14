@@ -2,6 +2,7 @@
 mod test;
 
 mod algorithm;
+mod async_client;
 mod client;
 mod error;
 mod header;
@@ -10,6 +11,7 @@ mod key_provider;
 mod token;
 mod unverified_token;
 
+pub use crate::async_client::AsyncClient;
 pub use crate::client::Client;
 pub use crate::token::{IdPayload, RequiredClaims, Token};
 pub use error::Error;
