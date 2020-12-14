@@ -162,7 +162,7 @@ impl GoogleSigninRequiredClaims {
 
 #[derive(Debug, Error, PartialEq)]
 pub enum GoogleSigninClaimsError {
-    #[error("JWT audience claim ({found}) is not equal to the client ID (expected)")]
+    #[error("JWT audience claim ({found}) is not equal to the client ID ({expected})")]
     InvalidAudience { found: String, expected: String },
     #[error("JWT issuer ({found}) is neither {} nor {}", .allowed[0], .allowed[1])]
     InvalidIssuer {

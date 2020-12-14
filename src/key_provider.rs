@@ -108,7 +108,7 @@ impl Validator for FirebaseValidator {
 
 #[derive(Debug, Error, PartialEq)]
 pub enum FirebaseClaimsError {
-    #[error("JWT audience claim ({found}) is not equal to the project ID (expected)")]
+    #[error("JWT audience claim ({found}) is not equal to the project ID ({expected})")]
     InvalidAudience { found: String, expected: String },
     #[error("JWT issuer ({found}) is not equal to {expected}")]
     InvalidIssuer { found: String, expected: String },
