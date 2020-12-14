@@ -1,12 +1,18 @@
-use crate::jwk::JsonWebKey;
-use crate::jwk::JsonWebKeySet;
+use crate::{error::TokenClaimsError, jwk::JsonWebKeySet};
+use crate::{
+    jwk::JsonWebKey,
+    token::{
+        FirebaseIdPayload, FirebaseRequiredClaims, GoogleSigninClaimsError, GoogleSigninIdPayload,
+        GoogleSigninRequiredClaims,
+    },
+    validator::Validator,
+};
 #[cfg(feature = "async")]
 use async_trait::async_trait;
 use headers::{Header, HeaderMap};
 use reqwest::header::CACHE_CONTROL;
 use std::time::Instant;
-
-const GOOGLE_CERT_URL: &str = "https://www.googleapis.com/oauth2/v3/certs";
+use thiserror::Error;
 
 #[cfg(feature = "blocking")]
 pub trait KeyProvider {
@@ -19,91 +25,209 @@ pub trait AsyncKeyProvider {
     async fn get_key_async(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()>;
 }
 
-pub struct GoogleKeyProvider {
-    cached: Option<JsonWebKeySet>,
-    expiration_time: Instant,
+#[derive(Default)]
+pub struct GoogleSigninKeyProvider {
+    cache: Option<(JsonWebKeySet, Instant)>,
 }
 
-impl Default for GoogleKeyProvider {
-    fn default() -> Self {
+pub struct GoogleSigninValidator {
+    client_id: String,
+}
+
+impl GoogleSigninValidator {
+    pub fn with_client_id(client_id: &str) -> Self {
         Self {
-            cached: None,
-            expiration_time: Instant::now(),
+            client_id: client_id.into(),
         }
     }
 }
 
-impl GoogleKeyProvider {
-    fn process_response(&mut self, headers: &HeaderMap, text: &str) -> Result<&JsonWebKeySet, ()> {
-        let mut expiration_time = None;
-        let x = headers.get_all(CACHE_CONTROL);
-        if let Ok(cache_header) = headers::CacheControl::decode(&mut x.iter()) {
-            if let Some(max_age) = cache_header.max_age() {
-                expiration_time = Some(Instant::now() + max_age);
+impl GoogleKeyProvider for GoogleSigninKeyProvider {
+    fn valid_cache(&self) -> Option<&JsonWebKeySet> {
+        self.cache.as_ref().and_then(|(cache, expiration)| {
+            if expiration > &Instant::now() {
+                Some(cache)
+            } else {
+                None
             }
+        })
+    }
+    fn update_cache(&mut self, key_set: JsonWebKeySet, expiration: Instant) {
+        self.cache = Some((key_set, expiration));
+    }
+    fn certificate_url() -> &'static str {
+        "https://www.googleapis.com/oauth2/v3/certs"
+    }
+}
+
+impl Validator for GoogleSigninValidator {
+    type RequiredClaims = GoogleSigninRequiredClaims;
+    type IdPayload = GoogleSigninIdPayload;
+    type ClaimsError = GoogleSigninClaimsError;
+    fn validate_claims(
+        &self,
+        claims: &Self::RequiredClaims,
+        current_timestamp: u64,
+    ) -> Result<(), GoogleSigninClaimsError> {
+        claims.validate_for_client(&self.client_id, current_timestamp)
+    }
+}
+
+impl TokenClaimsError for GoogleSigninClaimsError {}
+
+#[derive(Default, Clone, Debug)]
+pub struct FirebaseAuthenticationKeyProvider {
+    cache: Option<(JsonWebKeySet, Instant)>,
+}
+
+impl FirebaseValidator {
+    pub fn with_project_id(project_id: &str) -> Self {
+        Self {
+            project_id: project_id.into(),
         }
-        let key_set = serde_json::from_str(&text).map_err(|_| ())?;
-        if let Some(expiration_time) = expiration_time {
-            self.cached = Some(key_set);
-            self.expiration_time = expiration_time;
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FirebaseValidator {
+    project_id: String,
+}
+
+impl Validator for FirebaseValidator {
+    type RequiredClaims = FirebaseRequiredClaims;
+    type IdPayload = FirebaseIdPayload;
+    type ClaimsError = FirebaseClaimsError;
+    fn validate_claims(
+        &self,
+        claims: &Self::RequiredClaims,
+        current_timestamp: u64,
+    ) -> Result<(), FirebaseClaimsError> {
+        claims.validate_for_project(&self.project_id, current_timestamp)
+    }
+}
+
+#[derive(Debug, Error, PartialEq)]
+pub enum FirebaseClaimsError {
+    #[error("JWT audience claim ({found}) is not equal to the project ID ({expected})")]
+    InvalidAudience { found: String, expected: String },
+    #[error("JWT issuer ({found}) is not equal to {expected}")]
+    InvalidIssuer { found: String, expected: String },
+    #[error("JWT has expired. Current timestamp={now}. Expiration timestamp={exp}")]
+    Expired { now: u64, exp: u64 },
+    #[error("JWT was issued in the future (timestamp={iat}). Current timestamp={now}")]
+    IssuedInTheFuture { iat: u64, now: u64 },
+    #[error("Firebase user was authenticated in the future (timestamp={auth_time}). Current timestamp={now}")]
+    AuthenticatedInTheFuture { auth_time: u64, now: u64 },
+}
+
+impl TokenClaimsError for FirebaseClaimsError {}
+
+impl GoogleKeyProvider for FirebaseAuthenticationKeyProvider {
+    fn valid_cache(&self) -> Option<&JsonWebKeySet> {
+        self.cache.as_ref().and_then(|(cache, expiration)| {
+            if expiration > &Instant::now() {
+                Some(cache)
+            } else {
+                None
+            }
+        })
+    }
+    fn update_cache(&mut self, key_set: JsonWebKeySet, expiration: Instant) {
+        self.cache = Some((key_set, expiration));
+    }
+    fn certificate_url() -> &'static str {
+        "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
+    }
+}
+
+pub trait GoogleKeyProvider: Default {
+    fn valid_cache(&self) -> Option<&JsonWebKeySet>;
+    fn update_cache(&mut self, key_set: JsonWebKeySet, expiration: Instant);
+    fn certificate_url() -> &'static str;
+}
+
+fn process_response<'a>(
+    key_provider: &'a mut impl GoogleKeyProvider,
+    headers: &HeaderMap,
+    text: &str,
+) -> Option<&'a JsonWebKeySet> {
+    let x = headers.get_all(CACHE_CONTROL);
+    if let (Ok(cache_header), Ok(key_set)) = (
+        headers::CacheControl::decode(&mut x.iter()),
+        serde_json::from_str(&text),
+    ) {
+        if let Some(max_age) = cache_header.max_age() {
+            let expiration = Instant::now() + max_age;
+            key_provider.update_cache(key_set, expiration);
         }
-        Ok(self.cached.as_ref().unwrap())
     }
-    #[cfg(feature = "blocking")]
-    pub fn download_keys(&mut self) -> Result<&JsonWebKeySet, ()> {
-        let result = reqwest::blocking::get(GOOGLE_CERT_URL).map_err(|_| ())?;
-        self.process_response(&result.headers().clone(), &result.text().map_err(|_| ())?)
-    }
-    #[cfg(feature = "async")]
-    async fn download_keys_async(&mut self) -> Result<&JsonWebKeySet, ()> {
-        let result = reqwest::get(GOOGLE_CERT_URL).await.map_err(|_| ())?;
-        self.process_response(
-            &result.headers().clone(),
-            &result.text().await.map_err(|_| ())?,
-        )
-    }
+    key_provider.valid_cache()
 }
 
 #[cfg(feature = "blocking")]
-impl KeyProvider for GoogleKeyProvider {
+impl<T: GoogleKeyProvider> KeyProvider for T {
     fn get_key(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()> {
-        if let Some(ref cached_keys) = self.cached {
-            if self.expiration_time > Instant::now() {
-                return Ok(cached_keys.get_key(key_id));
-            }
+        if let Some(key_set) = self.valid_cache() {
+            Ok(key_set.get_key(key_id))
+        } else {
+            let result = reqwest::blocking::get(T::certificate_url()).map_err(|_| ())?;
+            Ok(process_response(
+                self,
+                &result.headers().clone(),
+                &result.text().map_err(|_| ())?,
+            )
+            .and_then(|key_set| key_set.get_key(key_id)))
         }
-        Ok(self.download_keys()?.get_key(key_id))
     }
 }
 
 #[cfg(feature = "async")]
 #[async_trait]
-impl AsyncKeyProvider for GoogleKeyProvider {
+impl<T: GoogleKeyProvider + Send + Sync> AsyncKeyProvider for T {
     async fn get_key_async(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()> {
-        if let Some(ref cached_keys) = self.cached {
-            if self.expiration_time > Instant::now() {
-                return Ok(cached_keys.get_key(key_id));
+        if let Some(key_set) = self.valid_cache() {
+            Ok(key_set.get_key(key_id))
+        } else {
+            let url = T::certificate_url();
+            if let Ok(response) = reqwest::get(url).await {
+                let headers = response.headers().clone();
+                if let Ok(text) = response.text().await {
+                    Ok(process_response(self, &headers, &text)
+                        .and_then(|key_set| key_set.get_key(key_id)))
+                } else {
+                    Err(())
+                }
+            } else {
+                Err(())
             }
         }
-        Ok(self.download_keys_async().await?.get_key(key_id))
     }
 }
 
 #[cfg(feature = "blocking")]
 #[test]
 pub fn test_google_provider() {
-    let mut provider = GoogleKeyProvider::default();
+    let mut provider = GoogleSigninKeyProvider::default();
+    assert!(provider.get_key("test").is_ok());
+    assert!(provider.get_key("test").is_ok());
+
+    let mut provider = FirebaseAuthenticationKeyProvider::default();
     assert!(provider.get_key("test").is_ok());
     assert!(provider.get_key("test").is_ok());
 }
 
 #[cfg(all(test, feature = "async"))]
 mod async_test {
-    use super::{AsyncKeyProvider, GoogleKeyProvider};
+    use super::AsyncKeyProvider;
+    use crate::key_provider::{FirebaseAuthenticationKeyProvider, GoogleSigninKeyProvider};
     use tokio;
     #[tokio::test]
     async fn test_google_provider_async() {
-        let mut provider = GoogleKeyProvider::default();
+        let mut provider = GoogleSigninKeyProvider::default();
+        assert!(provider.get_key_async("test").await.is_ok());
+        assert!(provider.get_key_async("test").await.is_ok());
+
+        let mut provider = FirebaseAuthenticationKeyProvider::default();
         assert!(provider.get_key_async("test").await.is_ok());
         assert!(provider.get_key_async("test").await.is_ok());
     }

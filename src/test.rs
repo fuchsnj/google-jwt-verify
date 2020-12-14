@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
 use super::*;
+#[cfg(feature = "async")]
+use crate::client::GoogleSigninTokioClient;
 use crate::error::Error;
 use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
@@ -6,6 +10,9 @@ use crate::jwk::JsonWebKeySet;
 use crate::key_provider::AsyncKeyProvider;
 #[cfg(feature = "blocking")]
 use crate::key_provider::KeyProvider;
+use crate::{error::TokenValidationError, token::GoogleSigninClaimsError};
+#[cfg(feature = "async")]
+use futures::future::join_all;
 
 #[cfg(feature = "async")]
 use async_trait::async_trait;
@@ -33,13 +40,18 @@ const JWKS: &'static str = r#"{
 }"#;
 const AUDIENCE: &'static str =
     "37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com";
+const AFTER_EXPIRATION: u64 = 2000000000;
 
-struct TestKeyProvider;
+#[derive(Default)]
+struct TestKeyProvider {
+    call_count: Arc<std::sync::RwLock<u8>>,
+}
 
 #[cfg(feature = "blocking")]
 impl KeyProvider for TestKeyProvider {
     fn get_key(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()> {
         let set: JsonWebKeySet = serde_json::from_str(JWKS).unwrap();
+        *self.call_count.write().unwrap() += 1;
         Ok(set.get_key(key_id))
     }
 }
@@ -49,6 +61,7 @@ impl KeyProvider for TestKeyProvider {
 impl AsyncKeyProvider for TestKeyProvider {
     async fn get_key_async(&mut self, key_id: &str) -> Result<Option<JsonWebKey>, ()> {
         let set: JsonWebKeySet = serde_json::from_str(JWKS).unwrap();
+        *self.call_count.write().unwrap() += 1;
         Ok(set.get_key(key_id))
     }
 }
@@ -56,10 +69,10 @@ impl AsyncKeyProvider for TestKeyProvider {
 #[cfg(feature = "blocking")]
 #[test]
 pub fn decode_keys() {
-    TestKeyProvider
+    TestKeyProvider::default()
         .get_key("3f3ef9c7803cd0b8d75247ee0d31fdd5c2cf3812")
         .unwrap();
-    TestKeyProvider
+    TestKeyProvider::default()
         .get_key("a748e9f767159f667a0223318de0b2329e544362")
         .unwrap();
 }
@@ -67,29 +80,45 @@ pub fn decode_keys() {
 #[cfg(feature = "blocking")]
 #[test]
 pub fn test_client() {
-    let client =
-        Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
-            .custom_key_provider(TestKeyProvider)
-            .build();
-    assert_eq!(client.verify_token(TOKEN).map(|_| ()), Err(Error::Expired));
+    let client = Client::builder(AUDIENCE)
+        .custom_key_provider(TestKeyProvider::default())
+        .unsafe_mock_timestamp(AFTER_EXPIRATION)
+        .build();
+    assert_eq!(
+        client.verify_token(TOKEN).map(|_| ()),
+        Err(Error::InvalidToken(TokenValidationError::Claims(
+            GoogleSigninClaimsError::Expired {
+                now: AFTER_EXPIRATION,
+                exp: 1526492533
+            }
+        )))
+    );
 }
 
 #[cfg(feature = "blocking")]
 #[test]
 pub fn test_client_invalid_client_id() {
     let client = Client::builder("invalid client id")
-        .custom_key_provider(TestKeyProvider)
+        .custom_key_provider(TestKeyProvider::default())
         .build();
     let result = client.verify_token(TOKEN).map(|_| ());
-    assert_eq!(result, Err(Error::InvalidToken))
+    assert_eq!(
+        result,
+        Err(Error::InvalidToken(TokenValidationError::Claims(
+            GoogleSigninClaimsError::InvalidAudience {
+                expected: "invalid client id".into(),
+                found: AUDIENCE.into()
+            }
+        )))
+    )
 }
 
 #[cfg(feature = "blocking")]
 #[test]
 pub fn test_id_token() {
     let client = Client::builder(AUDIENCE)
-        .custom_key_provider(TestKeyProvider)
-        .unsafe_ignore_expiration()
+        .custom_key_provider(TestKeyProvider::default())
+        .unsafe_mock_timestamp(0) // pretend it's 1970
         .build();
     let id_token = client
         .verify_id_token(TOKEN)
@@ -102,11 +131,11 @@ pub fn test_id_token() {
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn decode_keys_async() {
-    TestKeyProvider
+    TestKeyProvider::default()
         .get_key_async("3f3ef9c7803cd0b8d75247ee0d31fdd5c2cf3812")
         .await
         .unwrap();
-    TestKeyProvider
+    TestKeyProvider::default()
         .get_key_async("a748e9f767159f667a0223318de0b2329e544362")
         .await
         .unwrap();
@@ -115,13 +144,19 @@ async fn decode_keys_async() {
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn test_client_async() {
-    let client =
-        Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
-            .custom_key_provider(TestKeyProvider)
-            .build();
+    let client = Client::builder(AUDIENCE)
+        .custom_key_provider(TestKeyProvider::default())
+        .tokio()
+        .unsafe_mock_timestamp(AFTER_EXPIRATION)
+        .build();
     assert_eq!(
-        client.verify_token_async(TOKEN).await.map(|_| ()),
-        Err(Error::Expired)
+        client.verify_token(TOKEN).await.map(|_| ()),
+        Err(Error::InvalidToken(TokenValidationError::Claims(
+            GoogleSigninClaimsError::Expired {
+                now: AFTER_EXPIRATION,
+                exp: 1526492533
+            }
+        )))
     );
 }
 
@@ -129,24 +164,50 @@ async fn test_client_async() {
 #[tokio::test]
 async fn test_client_invalid_client_id_async() {
     let client = Client::builder("invalid client id")
-        .custom_key_provider(TestKeyProvider)
+        .tokio()
+        .custom_key_provider(TestKeyProvider::default())
         .build();
-    let result = client.verify_token_async(TOKEN).await.map(|_| ());
-    assert_eq!(result, Err(Error::InvalidToken))
+    let result = client.verify_token(TOKEN).await.map(|_| ());
+    assert_eq!(
+        result,
+        Err(Error::InvalidToken(TokenValidationError::Claims(
+            GoogleSigninClaimsError::InvalidAudience {
+                expected: "invalid client id".into(),
+                found: AUDIENCE.into()
+            }
+        )))
+    )
 }
 
 #[cfg(feature = "async")]
 #[tokio::test]
 async fn test_id_token_async() {
     let client = Client::builder(AUDIENCE)
-        .custom_key_provider(TestKeyProvider)
-        .unsafe_ignore_expiration()
+        .tokio()
+        .custom_key_provider(TestKeyProvider::default())
+        .unsafe_mock_timestamp(0) // pretend it's 1970
         .build();
     let id_token = client
-        .verify_id_token_async(TOKEN)
+        .verify_id_token(TOKEN)
         .await
         .expect("id token should be valid");
     assert_eq!(id_token.get_claims().get_audience(), AUDIENCE);
     assert_eq!(id_token.get_payload().get_domain(), None);
     assert_eq!(id_token.get_payload().get_email(), "fuchsnj@gmail.com");
+}
+
+#[cfg(feature = "async")]
+#[tokio::test]
+async fn test_deadlock_prevention() {
+    let client = Client::builder(AUDIENCE)
+        .tokio()
+        .unsafe_mock_timestamp(0) // pretend it's 1970
+        .build();
+    join_all((0..10u8).map(|_| verify_token_async(&client))).await;
+}
+
+#[cfg(feature = "async")]
+async fn verify_token_async(client: &GoogleSigninTokioClient) {
+    let result = client.verify_id_token(TOKEN).await;
+    assert_eq!(result, Err(Error::KeyDoesNotExist));
 }
