@@ -64,8 +64,8 @@ impl RequiredClaims {
 
 #[derive(Deserialize, Clone)]
 pub struct IdPayload {
-    email: String,
-    email_verified: bool,
+    email: Option<String>,
+    email_verified: Option<bool>,
     name: String,
     picture: String,
     given_name: String,
@@ -75,10 +75,10 @@ pub struct IdPayload {
 }
 
 impl IdPayload {
-    pub fn get_email(&self) -> String {
+    pub fn get_email(&self) -> Option<String> {
         self.email.clone()
     }
-    pub fn is_email_verified(&self) -> bool {
+    pub fn is_email_verified(&self) -> Option<bool> {
         self.email_verified
     }
     pub fn get_name(&self) -> String {

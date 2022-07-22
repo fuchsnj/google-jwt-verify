@@ -68,7 +68,7 @@ pub fn decode_keys() {
 #[test]
 pub fn test_client() {
     let client =
-        Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
+        Client::builder(AUDIENCE)
             .custom_key_provider(TestKeyProvider)
             .build();
     assert_eq!(client.verify_token(TOKEN).map(|_| ()), Err(Error::Expired));
@@ -96,7 +96,9 @@ pub fn test_id_token() {
         .expect("id token should be valid");
     assert_eq!(id_token.get_claims().get_audience(), AUDIENCE);
     assert_eq!(id_token.get_payload().get_domain(), None);
-    assert_eq!(id_token.get_payload().get_email(), "fuchsnj@gmail.com");
+    if let Some(email) = id_token.get_payload().get_email() {
+        assert_eq!(email, "fuchsnj@gmail.com");
+    }
 }
 
 #[cfg(feature = "async")]
@@ -116,7 +118,7 @@ async fn decode_keys_async() {
 #[tokio::test]
 async fn test_client_async() {
     let client =
-        Client::builder("37772117408-qjqo9hca513pdcunumt7gk08ii6te8is.apps.googleusercontent.com")
+        Client::builder(AUDIENCE)
             .custom_key_provider(TestKeyProvider)
             .build();
     assert_eq!(
@@ -148,5 +150,7 @@ async fn test_id_token_async() {
         .expect("id token should be valid");
     assert_eq!(id_token.get_claims().get_audience(), AUDIENCE);
     assert_eq!(id_token.get_payload().get_domain(), None);
-    assert_eq!(id_token.get_payload().get_email(), "fuchsnj@gmail.com");
+    if let Some(email) = id_token.get_payload().get_email() {
+        assert_eq!(email, "fuchsnj@gmail.com");
+    }
 }
