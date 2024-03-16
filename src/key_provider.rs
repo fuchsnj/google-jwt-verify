@@ -2,8 +2,8 @@ use crate::jwk::JsonWebKey;
 use crate::jwk::JsonWebKeySet;
 #[cfg(feature = "async")]
 use async_trait::async_trait;
-use headers::{Header, HeaderMap};
-use reqwest::header::CACHE_CONTROL;
+use cache_control::CacheControl;
+use http::{header::CACHE_CONTROL, HeaderMap};
 use std::time::Instant;
 
 const GOOGLE_CERT_URL: &str = "https://www.googleapis.com/oauth2/v3/certs";
@@ -35,17 +35,14 @@ impl Default for GoogleKeyProvider {
 
 impl GoogleKeyProvider {
     fn process_response(&mut self, headers: &HeaderMap, text: &str) -> Result<&JsonWebKeySet, ()> {
-        let mut expiration_time = None;
-        let x = headers.get_all(CACHE_CONTROL);
-        if let Ok(cache_header) = headers::CacheControl::decode(&mut x.iter()) {
-            if let Some(max_age) = cache_header.max_age() {
-                expiration_time = Some(Instant::now() + max_age);
-            }
-        }
-        let key_set = serde_json::from_str(&text).map_err(|_| ())?;
-        if let Some(expiration_time) = expiration_time {
-            self.cached = Some(key_set);
-            self.expiration_time = expiration_time;
+        if let Some(max_age) = headers
+            .get(CACHE_CONTROL)
+            .and_then(|hv| hv.to_str().ok())
+            .and_then(CacheControl::from_value)
+            .and_then(|c| c.max_age)
+        {
+            self.cached = Some(serde_json::from_str(&text).map_err(|_| ())?);
+            self.expiration_time = Instant::now() + max_age;
         }
         Ok(self.cached.as_ref().unwrap())
     }
