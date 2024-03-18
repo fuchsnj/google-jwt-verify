@@ -7,6 +7,8 @@ pub enum Error {
     RetrieveKeyFailure,
     UnsupportedAlgorithm(Algorithm),
     Expired,
+    #[cfg(feature = "rust-ssl")]
+    Rsa(rsa::errors::Error),
 }
 
 impl From<DecodeError> for Error {
@@ -21,8 +23,16 @@ impl From<serde_json::Error> for Error {
     }
 }
 
+#[cfg(feature = "native-ssl")]
 impl From<openssl::error::ErrorStack> for Error {
     fn from(_: openssl::error::ErrorStack) -> Self {
         Error::InvalidToken
+    }
+}
+
+#[cfg(feature = "rust-ssl")]
+impl From<rsa::errors::Error> for Error {
+    fn from(e: rsa::errors::Error) -> Self {
+        Error::Rsa(e)
     }
 }
