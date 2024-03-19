@@ -103,7 +103,7 @@ impl<KP: Default> GenericClient<Arc<tokio::sync::Mutex<KP>>> {
 impl<KP: KeyProvider> GenericClient<Arc<Mutex<KP>>> {
     pub fn verify_token_with_payload<P>(&self, token_string: &str) -> Result<Token<P>, Error>
     where
-        for<'a> P: Deserialize<'a>,
+        for<'a> P: Deserialize<'a> + std::fmt::Debug,
     {
         let unverified_token =
             UnverifiedToken::<P>::validate(token_string, self.check_expiration, &self.client_id)?;
@@ -126,7 +126,7 @@ impl<KP: AsyncKeyProvider> GenericClient<Arc<tokio::sync::Mutex<KP>>> {
         token_string: &str,
     ) -> Result<Token<P>, Error>
     where
-        for<'a> P: Deserialize<'a>,
+        for<'a> P: Deserialize<'a> + std::fmt::Debug,
     {
         let unverified_token =
             UnverifiedToken::<P>::validate(token_string, self.check_expiration, &self.client_id)?;

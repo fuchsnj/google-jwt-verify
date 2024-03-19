@@ -3,7 +3,7 @@ use crate::base64_decode;
 use crate::error::Error;
 use serde_derive::Deserialize;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct JsonWebKeySet {
     keys: Vec<JsonWebKey>,
 }
@@ -14,7 +14,7 @@ impl JsonWebKeySet {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct JsonWebKey {
     #[serde(rename = "alg")]
     algorithm: Algorithm,
