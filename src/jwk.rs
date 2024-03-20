@@ -32,8 +32,6 @@ impl JsonWebKey {
     pub fn verify(&self, body: &[u8], signature: &[u8]) -> Result<(), Error> {
         match self.algorithm {
             Algorithm::RS256 => {
-                // https://docs.rs/rsa/0.9.6/src/rsa/pkcs1v15.rs.html#561
-                // https://en.wikipedia.org/wiki/PKCS_1#Schemes
                 #[cfg(feature = "native-ssl")]
                 {
                     use openssl::{
@@ -48,14 +46,16 @@ impl JsonWebKey {
                 }
                 #[cfg(feature = "rust-ssl")]
                 {
-                    use rsa::{pkcs1v15::Pkcs1v15Sign, BigUint, RsaPublicKey};
-                    use sha2::{Digest, Sha256};
-                    let n = BigUint::from_bytes_be(&base64_decode(&self.n)?.as_ref());
-                    let e = BigUint::from_bytes_be(&base64_decode(&self.e)?.as_ref());
-                    let key = RsaPublicKey::new(n, e).map_err(Error::from)?;
-                    let digest = Sha256::digest(body).to_vec();
-                    key.verify(Pkcs1v15Sign::new::<Sha256>(), &digest, signature)
-                        .map_err(Error::from)?;
+                    ring::rsa::PublicKeyComponents {
+                        n: base64_decode(&self.n)?,
+                        e: base64_decode(&self.e)?,
+                    }
+                    .verify(
+                        &ring::signature::RSA_PKCS1_2048_8192_SHA256,
+                        body,
+                        signature,
+                    )
+                    .map_err(Error::from)?
                 }
                 Ok(())
             }

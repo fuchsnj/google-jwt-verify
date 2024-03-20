@@ -7,7 +7,7 @@ pub enum InvalidError {
     #[cfg(feature = "native-ssl")]
     OpenSSL(String),
     #[cfg(feature = "rust-ssl")]
-    Rsa(rsa::errors::Error),
+    Crypto,
     TokenFormat(String),
     InvalidClaims(String),
     InvalidKeyId,
@@ -41,8 +41,9 @@ impl From<openssl::error::ErrorStack> for Error {
 }
 
 #[cfg(feature = "rust-ssl")]
-impl From<rsa::errors::Error> for Error {
-    fn from(e: rsa::errors::Error) -> Self {
-        Error::InvalidToken(InvalidError::Rsa(e))
+impl From<ring::error::Unspecified> for Error {
+    fn from(_: ring::error::Unspecified) -> Self {
+        // https://docs.rs/ring/0.17.8/ring/error/struct.Unspecified.html
+        Error::InvalidToken(InvalidError::Crypto)
     }
 }
