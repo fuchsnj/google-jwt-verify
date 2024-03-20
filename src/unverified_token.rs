@@ -29,21 +29,44 @@ where
         client_id: &str,
     ) -> Result<Self, Error> {
         let mut segments = token_string.split('.');
-        let encoded_header = segments.next().ok_or(Error::InvalidToken)?;
-        let encoded_payload = segments.next().ok_or(Error::InvalidToken)?;
-        let encoded_signature = segments.next().ok_or(Error::InvalidToken)?;
+        let encoded_header = segments.next().ok_or(Error::InvalidToken(
+            "missing segment: encoded header".to_owned(),
+        ))?;
+        let encoded_payload = segments.next().ok_or(Error::InvalidToken(
+            "missing segment: encoded payload".to_owned(),
+        ))?;
+        let encoded_signature = segments.next().ok_or(Error::InvalidToken(
+            "missing segment: encoded ignature".to_owned(),
+        ))?;
 
-        let header: Header = serde_json::from_slice(&base64_decode(&encoded_header)?)?;
+        let decoded = base64_decode(encoded_header)?;
+        let header: Header = serde_json::from_slice(&decoded).unwrap_or_else(|_| {
+            panic!(
+                "decoded header from {}",
+                String::from_utf8(decoded).unwrap()
+            )
+        });
         let signed_body = format!("{}.{}", encoded_header, encoded_payload);
-        let signature = base64_decode(&encoded_signature)?;
-        let payload = base64_decode(&encoded_payload)?;
-        let claims: RequiredClaims = serde_json::from_slice(&payload)?;
+        let signature = base64_decode(encoded_signature)?;
+        let payload = base64_decode(encoded_payload)?;
+        let claims: RequiredClaims = serde_json::from_slice(&payload).unwrap_or_else(|_| {
+            panic!(
+                "decoded payload from {}",
+                String::from_utf8(payload.clone()).unwrap()
+            )
+        });
         if claims.get_audience() != client_id {
-            return Err(Error::InvalidToken);
+            return Err(Error::InvalidToken(format!(
+                "expected audience to inclue {client_id}, got {}",
+                claims.get_audience()
+            )));
         }
         let issuer = claims.get_issuer();
         if issuer != "https://accounts.google.com" && issuer != "accounts.google.com" {
-            return Err(Error::InvalidToken);
+            return Err(Error::InvalidToken(format!(
+                "expected issuer (https://)?accounts.google.com, got {}",
+                issuer
+            )));
         }
         let current_timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -53,9 +76,18 @@ where
             return Err(Error::Expired);
         }
         if claims.get_issued_at() > claims.get_expires_at() {
-            return Err(Error::InvalidToken);
+            return Err(Error::InvalidToken(format!(
+                "claims issued at is great than expires: {} > {}",
+                claims.get_issued_at(),
+                claims.get_expires_at()
+            )));
         }
-        let json_payload: P = serde_json::from_slice(&payload)?;
+        let json_payload: P = serde_json::from_slice(&payload).unwrap_or_else(|_| {
+            panic!(
+                "expected payload from {}",
+                String::from_utf8(payload).unwrap()
+            )
+        });
         Ok(Self {
             claims,
             signature,
@@ -83,7 +115,11 @@ impl<P> UnverifiedToken<P> {
     fn verify_with_key(self, key: Result<Option<JsonWebKey>, ()>) -> Result<Token<P>, Error> {
         let key = match key {
             Ok(Some(key)) => key,
-            Ok(None) => return Err(Error::InvalidToken),
+            Ok(None) => {
+                return Err(Error::InvalidToken(
+                    "key not present for verification".to_owned(),
+                ))
+            }
             Err(_) => return Err(Error::RetrieveKeyFailure),
         };
         key.verify(self.signed_body.as_bytes(), &self.signature)?;
