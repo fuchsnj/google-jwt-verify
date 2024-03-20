@@ -70,7 +70,7 @@ pub struct IdPayload {
     picture: String,
     given_name: String,
     family_name: String,
-    locale: String,
+    locale: Option<String>,
     hd: Option<String>,
 }
 
@@ -93,7 +93,7 @@ impl IdPayload {
     pub fn get_family_name(&self) -> String {
         self.family_name.clone()
     }
-    pub fn get_locale(&self) -> String {
+    pub fn get_locale(&self) -> Option<String> {
         self.locale.clone()
     }
     pub fn get_domain(&self) -> Option<String> {
