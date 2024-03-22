@@ -21,6 +21,7 @@ impl<P> Token<P> {
     }
 }
 
+// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1
 #[derive(PartialEq, Deserialize, Debug, Clone)]
 pub struct RequiredClaims {
     #[serde(rename = "iss")]
@@ -32,14 +33,20 @@ pub struct RequiredClaims {
     #[serde(rename = "aud")]
     audience: String,
 
-    #[serde(rename = "azp")]
-    android_audience: String,
+    #[serde(rename = "exp")]
+    expires_at: u64,
+
+    #[serde(rename = "nbf")]
+    not_before: u64,
 
     #[serde(rename = "iat")]
     issued_at: u64,
 
-    #[serde(rename = "exp")]
-    expires_at: u64,
+    #[serde(rename = "jti")]
+    jwt_id: String,
+
+    #[serde(rename = "azp")]
+    android_audience: String,
 }
 
 impl RequiredClaims {
@@ -52,18 +59,25 @@ impl RequiredClaims {
     pub fn get_audience(&self) -> String {
         self.audience.clone()
     }
-    pub fn get_android_audience(&self) -> String {
-        self.android_audience.clone()
+    pub fn get_expires_at(&self) -> u64 {
+        self.expires_at
+    }
+    pub fn get_not_before(&self) -> u64 {
+        self.not_before
     }
     pub fn get_issued_at(&self) -> u64 {
         self.issued_at
     }
-    pub fn get_expires_at(&self) -> u64 {
-        self.expires_at
+    pub fn get_jwt_id(&self) -> String {
+        self.jwt_id.clone()
+    }
+    pub fn get_android_audience(&self) -> String {
+        self.android_audience.clone()
     }
 }
 
-#[derive(Deserialize, Clone)]
+// https://developers.google.com/identity/gsi/web/reference/html-reference#credential
+#[derive(Deserialize, Clone, Debug)]
 pub struct IdPayload {
     email: String,
     email_verified: bool,
@@ -71,7 +85,7 @@ pub struct IdPayload {
     picture: String,
     given_name: String,
     family_name: String,
-    locale: String,
+    locale: Option<String>,
     hd: Option<String>,
 }
 
@@ -94,7 +108,7 @@ impl IdPayload {
     pub fn get_family_name(&self) -> String {
         self.family_name.clone()
     }
-    pub fn get_locale(&self) -> String {
+    pub fn get_locale(&self) -> Option<String> {
         self.locale.clone()
     }
     pub fn get_domain(&self) -> Option<String> {
